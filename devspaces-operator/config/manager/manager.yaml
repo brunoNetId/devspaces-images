@@ -42,7 +42,7 @@ spec:
             - /manager
           args:
             - --leader-elect
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 60000
               name: metrics
