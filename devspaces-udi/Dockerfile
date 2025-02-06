@@ -66,7 +66,7 @@ RUN \
     # END stow
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1736404155
+FROM registry.redhat.io/ubi9-minimal:9.5-1738816775
 
 USER root
 
