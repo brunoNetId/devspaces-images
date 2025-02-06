@@ -19,7 +19,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -49,7 +49,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -79,7 +79,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -109,7 +109,37 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
+          "main"
+        ],
+        "disabled": false
+      },
+      "3.x": {
+        "upstream_branch": [
+          "main",
+          "main"
+        ],
+        "disabled": false
+      }
+    },
+    "jetbrains-ide": {
+      "3.17": {
+        "upstream_branch": [
+          "7.92.x",
+          "main"
+        ],
+        "disabled": true
+      },
+      "3.18": {
+        "upstream_branch": [
+          "7.95.x",
+          "main"
+        ],
+        "disabled": false
+      },
+      "3.19": {
+        "upstream_branch": [
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -139,7 +169,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -169,7 +199,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -199,7 +229,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -365,7 +395,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -395,7 +425,7 @@
       },
       "3.19": {
         "upstream_branch": [
-          "7.97.x",
+          "7.98.x",
           "main"
         ],
         "disabled": false
@@ -491,11 +521,11 @@
       },
       "3.19": {
         "CSV_VERSION": "3.19.0",
-        "CSV_VERSION_PREV": "3.17.0"
+        "CSV_VERSION_PREV": "3.18.1"
       },
       "3.x": {
         "CSV_VERSION": "3.19.0",
-        "CSV_VERSION_PREV": "3.17.0"
+        "CSV_VERSION_PREV": "3.18.1"
       }
     }
   },
