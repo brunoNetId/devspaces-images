@@ -19,7 +19,7 @@ remote_sources:
 - name: devspaces-images-code
   remote_source:
     repo: https://github.com/redhat-developer/devspaces-images.git
-    ref: b00b8788a363a1e81e4ffbd29a2f68a990925155
+    ref: 1d7697e92afa37d074c19190658e0dc82c34f75d
     pkg_managers: [npm]
     packages:
       npm: 
