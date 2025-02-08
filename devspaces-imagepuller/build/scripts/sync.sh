@@ -49,7 +49,7 @@ if [[ "${CSV_VERSION}" == "3.y.0" ]]; then usage; fi
 echo ".github/
 .git/
 .gitattributes
-.gitignore
+/.gitignore
 .dockerignore
 .ci/
 .vscode/
@@ -61,7 +61,7 @@ devfile.yaml
 /content_sets.*
 /cvp.yml
 /cvp-owners.yml
-README.md
+/README.md
 get-source*.sh
 tests/basic-test.yaml
 make-release.sh
@@ -71,7 +71,7 @@ rsync -azrlt --checksum --exclude-from /tmp/rsync-excludes --delete ${SOURCEDIR}
 rm -f /tmp/rsync-excludes
 
 # ensure shell scripts are executable
-find ${TARGETDIR}/ -name "*.sh" -exec chmod +x {} \;
+#find ${TARGETDIR}/ -name "*.sh" -exec chmod +x {} \;
 
 sed_in_place() {
     SHORT_UNAME=$(uname -s)
