@@ -10,5 +10,5 @@
  *   Red Hat, Inc. - initial API and implementation
  */
 
-export const FACTORY_RESOLVER_NOT_FOUND_ERROR_MESSAGE =
-  'Cannot build factory with any of the provided parameters. Please check parameters correctness, and resend query.';
+export const EDITOR_DEVFILE_API_QUERY =
+  'http://127.0.0.1:8080/dashboard/api/editors/devfile?che-editor=';

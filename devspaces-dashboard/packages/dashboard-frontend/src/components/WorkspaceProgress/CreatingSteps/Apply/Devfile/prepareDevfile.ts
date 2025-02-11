@@ -31,7 +31,6 @@ export function prepareDevfile(
   factoryId: string,
   storageType: che.WorkspaceStorageType | undefined,
   appendSuffix: boolean,
-  parentDevfile?: devfileApi.Devfile | undefined,
 ): devfileApi.Devfile {
   const devfile = cloneDeep(_devfile);
   const attributes = DevfileAdapter.getAttributes(devfile);
@@ -61,15 +60,8 @@ export function prepareDevfile(
   devfile.metadata.name = sanitizeName(devfile.metadata.name);
 
   // propagate storage type
-  if (storageType) {
-    attributes[DEVWORKSPACE_STORAGE_TYPE_ATTR] = storageType;
-  }
-  if (parentDevfile && attributes[DEVWORKSPACE_STORAGE_TYPE_ATTR]) {
-    const parentDevfileAttributes = DevfileAdapter.getAttributes(parentDevfile);
-    if (parentDevfileAttributes[DEVWORKSPACE_STORAGE_TYPE_ATTR]) {
-      delete attributes[DEVWORKSPACE_STORAGE_TYPE_ATTR];
-      console.warn(`Unable to apply ${DEVWORKSPACE_STORAGE_TYPE_ATTR} attribute.`);
-    }
+  if (storageType === 'ephemeral') {
+    attributes[DEVWORKSPACE_STORAGE_TYPE_ATTR] = 'ephemeral';
   }
 
   return devfile;

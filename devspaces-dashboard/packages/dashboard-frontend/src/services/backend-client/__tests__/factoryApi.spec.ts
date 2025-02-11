@@ -16,15 +16,6 @@ import { getFactoryResolver, refreshFactoryOauthToken } from '@/services/backend
 import devfileApi from '@/services/devfileApi';
 import { FactoryResolver } from '@/services/helpers/types';
 
-const mockFetchParentDevfile = jest.fn();
-jest.mock('@/services/backend-client/parentDevfileApi', () => {
-  return {
-    getParentDevfile: async (href: string) => {
-      return mockFetchParentDevfile(href);
-    },
-  };
-});
-
 describe('Factory API', () => {
   const mockPost = mockAxios.post as jest.Mock;
 
@@ -51,9 +42,6 @@ describe('Factory API', () => {
   });
 
   describe('resolve factory', () => {
-    beforeEach(() => {
-      mockFetchParentDevfile.mockResolvedValueOnce(expect.anything());
-    });
     it('should call "/factory/resolver"', async () => {
       mockPost.mockResolvedValueOnce({
         data: expect.anything(),
@@ -66,7 +54,6 @@ describe('Factory API', () => {
       expect(mockPost).toHaveBeenCalledWith('/api/factory/resolver', {
         url: 'https://test.azure.com/_git/public-repo?version=GBtest/branch',
       });
-      expect(mockFetchParentDevfile).toHaveBeenCalled();
     });
 
     it('should return a factory resolver', async () => {
@@ -76,7 +63,6 @@ describe('Factory API', () => {
 
       const res = await getFactoryResolver(location, {});
 
-      expect(mockFetchParentDevfile).toHaveBeenCalled();
       expect(res).toEqual(factoryResolver);
     });
   });

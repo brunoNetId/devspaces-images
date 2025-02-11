@@ -16,24 +16,11 @@ import { Props } from '@/pages/WorkspaceDetails/OverviewTab/StorageType';
 
 export default class StorageTypeFormGroup extends React.PureComponent<Props> {
   render() {
-    if (this.props.parentStorageType) {
-      return (
-        <div>
-          Mock Storage Type Form
-          <button disabled={true} onClick={() => this.props.onSave('per-workspace')}>
-            Change storage type
-          </button>
-          <span>StorageType: {this.props.storageType}</span>
-        </div>
-      );
-    } else {
-      return (
-        <div>
-          Mock Storage Type Form
-          <button onClick={() => this.props.onSave('per-workspace')}>Change storage type</button>
-          <span>StorageType: {this.props.storageType}</span>
-        </div>
-      );
-    }
+    return (
+      <div>
+        Mock Storage Type Form
+        <button onClick={() => this.props.onSave('per-workspace')}>Change storage type</button>
+      </div>
+    );
   }
 }

@@ -45,7 +45,7 @@ export default function prepareResources(
   }
 
   // set storage type attribute
-  if (storageType) {
+  if (storageType === 'ephemeral') {
     if (!devWorkspace.spec.template.attributes) {
       devWorkspace.spec.template.attributes = {};
     }

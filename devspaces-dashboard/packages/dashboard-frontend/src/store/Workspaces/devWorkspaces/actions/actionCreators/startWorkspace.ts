@@ -21,7 +21,6 @@ import {
   devWorkspacesClusterActionCreators,
 } from '@/store/DevWorkspacesCluster';
 import { verifyAuthorized } from '@/store/SanityCheck';
-import { FACTORY_RESOLVER_NOT_FOUND_ERROR_MESSAGE } from '@/store/Workspaces/devWorkspaces/actions/actionCreators/const';
 import {
   checkDevWorkspaceNextStartAnnotation,
   checkRunningWorkspacesLimit,
@@ -62,9 +61,9 @@ export const startWorkspace =
         await OAuthService.refreshTokenIfProjectExists(workspace);
       } catch (e: unknown) {
         // Do not interrupt the workspace start, but show a warning notification.
+
         const warnMessage = getWarningFromResponse(e);
-        // Do not dispatch a warning, if the git provider is not supported.
-        if (warnMessage && warnMessage !== FACTORY_RESOLVER_NOT_FOUND_ERROR_MESSAGE) {
+        if (warnMessage) {
           dispatch(devWorkspaceWarningUpdateAction({ workspace, warning: warnMessage }));
         }
       }
