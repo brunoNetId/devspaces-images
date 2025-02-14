@@ -863,7 +863,7 @@ spec:
                 - name: RELATED_IMAGE_che_server
                   value: registry.redhat.io/devspaces/server-rhel9@sha256:c6559e9a6bcd5f9f9a2be60cd85c6d53ce1e50d962df505775ec645b05b04221
                 - name: RELATED_IMAGE_dashboard
-                  value: registry.redhat.io/devspaces/dashboard-rhel9@sha256:d71a12d858d86a92f476bff57f97bc7ba16a67d61d40ff20d45415b9beed9383
+                  value: registry.redhat.io/devspaces/dashboard-rhel9@sha256:7c5a2d2b14773ebff0e48671494e05b8e4e4c9ac22b057cb70b3de0eb47d7945
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_injector
                   value: registry.redhat.io/devspaces/code-rhel9@sha256:6817a9c70cfdaac6a3a12bc93018cba8aeea9c0dc90c72c0e1ffc84953cc2e40
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_runtime_description
@@ -881,7 +881,7 @@ spec:
                 - name: RELATED_IMAGE_pvc_jobs
                   value: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4xOAo____
-                  value: registry.redhat.io/devspaces/udi-rhel9@sha256:c87671e98e55c7f5a32f1ee5a44138b9aa742acc723316cd2070bb9880eea8a3
+                  value: registry.redhat.io/devspaces/udi-rhel9@sha256:4dfd7fb41fc00a6dccf084b9b81b6f5c96518c5b4421566176b6eac36b2c2b0c
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4xOQo____
                   value: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL3Joc2NsL21vbmdvZGItMzYtcmhlbDc6MS01MAo____
@@ -889,7 +889,7 @@ spec:
                 - name: RELATED_IMAGE_single_host_gateway
                   value: registry.redhat.io/devspaces/traefik-rhel9@sha256:1dc157687f7a6a53e400079edf9cc976d7436290555d6752c04b5f98eeb74ccf
                 - name: RELATED_IMAGE_single_host_gateway_config_sidecar
-                  value: registry.redhat.io/devspaces/configbump-rhel9@sha256:5100e4297c86f7f928ca585226018de8443ab68a60da78fbf258cf3917cdcf19
+                  value: registry.redhat.io/devspaces/configbump-rhel9@sha256:d3d238e1234e22a95484648e17294c710a58f51b26e9fdf13f9705e46164e586
                 - name: WATCH_NAMESPACE
                   valueFrom:
                     fieldRef:
@@ -1071,7 +1071,7 @@ spec:
   - name: che_server
     image: registry.redhat.io/devspaces/server-rhel9@sha256:c6559e9a6bcd5f9f9a2be60cd85c6d53ce1e50d962df505775ec645b05b04221
   - name: dashboard
-    image: registry.redhat.io/devspaces/dashboard-rhel9@sha256:d71a12d858d86a92f476bff57f97bc7ba16a67d61d40ff20d45415b9beed9383
+    image: registry.redhat.io/devspaces/dashboard-rhel9@sha256:7c5a2d2b14773ebff0e48671494e05b8e4e4c9ac22b057cb70b3de0eb47d7945
   - name: editor_definition_che_code_latest_che_code_injector
     image: registry.redhat.io/devspaces/code-rhel9@sha256:6817a9c70cfdaac6a3a12bc93018cba8aeea9c0dc90c72c0e1ffc84953cc2e40
   - name: editor_definition_che_code_latest_che_code_runtime_description
@@ -1089,7 +1089,7 @@ spec:
   - name: pvc_jobs
     image: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4xoao____
-    image: registry.redhat.io/devspaces/udi-rhel9@sha256:c87671e98e55c7f5a32f1ee5a44138b9aa742acc723316cd2070bb9880eea8a3
+    image: registry.redhat.io/devspaces/udi-rhel9@sha256:4dfd7fb41fc00a6dccf084b9b81b6f5c96518c5b4421566176b6eac36b2c2b0c
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4xoqo____
     image: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl3joc2nsl21vbmdvzgitmzytcmhlbdc6ms01mao____
@@ -1097,4 +1097,4 @@ spec:
   - name: single_host_gateway
     image: registry.redhat.io/devspaces/traefik-rhel9@sha256:1dc157687f7a6a53e400079edf9cc976d7436290555d6752c04b5f98eeb74ccf
   - name: single_host_gateway_config_sidecar
-    image: registry.redhat.io/devspaces/configbump-rhel9@sha256:5100e4297c86f7f928ca585226018de8443ab68a60da78fbf258cf3917cdcf19
+    image: registry.redhat.io/devspaces/configbump-rhel9@sha256:d3d238e1234e22a95484648e17294c710a58f51b26e9fdf13f9705e46164e586
