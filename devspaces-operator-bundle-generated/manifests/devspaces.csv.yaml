@@ -871,7 +871,7 @@ spec:
                 - name: RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9
                   value: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
                 - name: RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9_injector
-                  value: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:8a64d91e6eed539c17c516462724a01c1a901837e4419b4fea1249b7dd1c228d
+                  value: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:6db690b9bcebe82706f29276b8fe5872dd3b2538961e06365b17d2c166265ccb
                 - name: RELATED_IMAGE_gateway_authentication_sidecar
                   value: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:bd49cfc8452b3d96467cc222db9487e120abc6cc5ba81349c6b3703706f36a08
                 - name: RELATED_IMAGE_gateway_authorization_sidecar
@@ -1079,7 +1079,7 @@ spec:
   - name: editor_definition_che_idea_latest_idea_rhel9
     image: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
   - name: editor_definition_che_idea_latest_idea_rhel9_injector
-    image: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:8a64d91e6eed539c17c516462724a01c1a901837e4419b4fea1249b7dd1c228d
+    image: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:6db690b9bcebe82706f29276b8fe5872dd3b2538961e06365b17d2c166265ccb
   - name: gateway_authentication_sidecar
     image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:bd49cfc8452b3d96467cc222db9487e120abc6cc5ba81349c6b3703706f36a08
   - name: gateway_authorization_sidecar
