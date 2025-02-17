@@ -6,7 +6,7 @@
     "tags": [
       "Tech-Preview",
       "PHP",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=php",
     "icon": {
@@ -34,7 +34,7 @@
       ".NET Runtime",
       "Netcoredbg",
       "Omnisharp",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=dotnet",
     "icon": {
@@ -51,31 +51,6 @@
     }
   },
   {
-    "id": "nodejs-mongodb",
-    "displayName": "Node.js MongoDB",
-    "description": "Node.js stack with NPM 8, Node.js 16 and MongoDB 3.6",
-    "tags": [
-      "Node.js",
-      "NPM",
-      "Express",
-      "MongoDB",
-      "UBI8"
-    ],
-    "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=nodejs-mongodb",
-    "icon": {
-      "mediatype": "image/svg+xml",
-      "base64data": "PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0KCiAgICBDb3B5cmlnaHQgKGMpIDIwMTgtMjAyMSBSZWQgSGF0LCBJbmMuCiAgICBBbGwgcmlnaHRzIHJlc2VydmVkLiBUaGlzIHByb2dyYW0gYW5kIHRoZSBhY2NvbXBhbnlpbmcgbWF0ZXJpYWxzCiAgICBhcmUgbWFkZSBhdmFpbGFibGUgdW5kZXIgdGhlIHRlcm1zIG9mIHRoZSBFY2xpcHNlIFB1YmxpYyBMaWNlbnNlIHYyLjAKICAgIHdoaWNoIGFjY29tcGFuaWVzIHRoaXMgZGlzdHJpYnV0aW9uLCBhbmQgaXMgYXZhaWxhYmxlIGF0CiAgICBodHRwOi8vd3d3LmVjbGlwc2Uub3JnL2xlZ2FsL2VwbC0yLjAKCiAgICBDb250cmlidXRvcnM6CiAgICAgIFJlZCBIYXQsIEluYy4gLSBpbml0aWFsIEFQSSBhbmQgaW1wbGVtZW50YXRpb24KCi0tPgo8c3ZnIHdpZHRoPSIyMDVweCIgaGVpZ2h0PSIyMzJweCIgdmlld0JveD0iMCAwIDIwNSAyMzIiIHZlcnNpb249IjEuMSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiB4bWxuczp4bGluaz0iaHR0cDovL3d3dy53My5vcmcvMTk5OS94bGluayI+CiAgICA8ZyBzdHJva2U9Im5vbmUiIHN0cm9rZS13aWR0aD0iMSIgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj4KICAgICAgICA8ZyBmaWxsPSIjMDAwMDAwIj4KICAgICAgICAgICAgPHBhdGggZD0iTTEwMi42LDIzMS41IEM5OS41LDIzMS41IDk2LjQsMjMwLjcgOTMuNywyMjkuMSBMNjUuNSwyMTIuNCBDNjEuMywyMTAgNjMuMywyMDkuMiA2NC43LDIwOC43IEM3MC4zLDIwNi43IDcxLjUsMjA2LjMgNzcuNSwyMDIuOSBDNzguMSwyMDIuNSA3OSwyMDIuNyA3OS42LDIwMy4xIEwxMDEuMywyMTYgQzEwMi4xLDIxNi40IDEwMy4yLDIxNi40IDEwMy45LDIxNiBMMTg4LjQsMTY3LjIgQzE4OS4yLDE2Ni44IDE4OS43LDE2NS44IDE4OS43LDE2NC45IEwxODkuNyw2Ny40IEMxODkuNyw2Ni40IDE4OS4yLDY1LjYgMTg4LjQsNjUuMSBMMTAzLjksMTYuNCBDMTAzLjEsMTUuOSAxMDIuMSwxNS45IDEwMS4zLDE2LjQgTDE2LjksNjUuMSBDMTYuMSw2NS42IDE1LjYsNjYuNSAxNS42LDY3LjQgTDE1LjYsMTY0LjkgQzE1LjYsMTY1LjggMTYuMSwxNjYuNyAxNi45LDE2Ny4yIEw0MCwxODAuNiBDNTIuNiwxODYuOSA2MC4yLDE3OS41IDYwLjIsMTcyLjEgTDYwLjIsNzUuOCBDNjAuMiw3NC40IDYxLjMsNzMuNCA2Mi43LDczLjQgTDczLjQsNzMuNCBDNzQuNyw3My40IDc1LjgsNzQuNSA3NS44LDc1LjggTDc1LjgsMTcyIEM3NS44LDE4OC44IDY2LjcsMTk4LjQgNTAuOCwxOTguNCBDNDUuOSwxOTguNCA0Mi4xLDE5OC40IDMxLjMsMTkzLjEgTDkuMSwxODAuMyBDMy42LDE3Ny4xIDAuMiwxNzEuMiAwLjIsMTY0LjkgTDAuMiw2Ny40IEMwLjIsNjEuMSAzLjYsNTUuMiA5LjEsNTIgTDkzLjYsMy4yIEM5OC45LDAuMiAxMDYuMSwwLjIgMTExLjQsMy4yIEwxOTUuOSw1MiBDMjAxLjQsNTUuMiAyMDQuOCw2MS4xIDIwNC44LDY3LjQgTDIwNC44LDE2NC45IEMyMDQuOCwxNzEuMiAyMDEuNCwxNzcuMSAxOTUuOSwxODAuMyBMMTExLjQsMjI5LjEgQzEwOC44LDIzMC42IDEwNS43LDIzMS41IDEwMi42LDIzMS41IEwxMDIuNiwyMzEuNSBaIj48L3BhdGg+CiAgICAgICAgICAgIDxwYXRoIGQ9Ik0xMjguNywxNjQuMyBDOTEuNywxNjQuMyA4NCwxNDcuMyA4NCwxMzMuMSBDODQsMTMxLjcgODUuMSwxMzAuNyA4Ni40LDEzMC43IEw5Ny4zLDEzMC43IEM5OC41LDEzMC43IDk5LjUsMTMxLjYgOTkuNywxMzIuOCBDMTAxLjMsMTQzLjkgMTA2LjMsMTQ5LjUgMTI4LjYsMTQ5LjUgQzE0Ni40LDE0OS41IDE1NCwxNDUuNSAxNTQsMTM2IEMxNTQsMTMwLjYgMTUxLjksMTI2LjUgMTI0LjIsMTIzLjggQzEwMS4xLDEyMS41IDg2LjgsMTE2LjQgODYuOCw5Ny45IEM4Ni44LDgwLjkgMTAxLjIsNzAuNyAxMjUuMyw3MC43IEMxNTIuNCw3MC43IDE2NS44LDgwLjEgMTY3LjUsMTAwLjIgQzE2Ny42LDEwMC45IDE2Ny4zLDEwMS42IDE2Ni45LDEwMi4xIEMxNjYuNCwxMDIuNiAxNjUuOCwxMDIuOSAxNjUuMSwxMDIuOSBMMTU0LjEsMTAyLjkgQzE1MywxMDIuOSAxNTIsMTAyLjEgMTUxLjcsMTAxIEMxNDkuMSw4OS4zIDE0Mi43LDg1LjYgMTI1LjMsODUuNiBDMTA1LjksODUuNiAxMDMuNiw5Mi40IDEwMy42LDk3LjQgQzEwMy42LDEwMy41IDEwNi4zLDEwNS4zIDEzMi41LDEwOC44IEMxNTguNSwxMTIuMiAxNzAuOCwxMTcuMSAxNzAuOCwxMzUuMyBDMTcwLjgsMTUzLjcgMTU1LjQsMTY0LjMgMTI4LjcsMTY0LjMgTDEyOC43LDE2NC4zIFoiPjwvcGF0aD4KICAgICAgICA8L2c+CiAgICA8L2c+Cjwvc3ZnPgo="
-    },
-    "project": {
-      "zip": {
-        "filename": "devspaces-samples-nodejs-mongodb-sample-devspaces-3.19-rhel-9.zip"
-      }
-    },
-    "devfile": {
-      "filename": "devspaces-samples-nodejs-mongodb-sample-devspaces-3.19-rhel-9-devfile.yaml"
-    }
-  },
-  {
     "id": "java-lombok",
     "displayName": "Java Lombok",
     "description": "Java Stack with Project Lombok",
@@ -84,7 +59,7 @@
       "OpenJDK",
       "Maven",
       "Lombok",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=java-lombok",
     "icon": {
@@ -108,7 +83,7 @@
       "Node.js",
       "NPM",
       "Express",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=nodejs-express",
     "icon": {
@@ -137,7 +112,7 @@
       "g++",
       "make",
       "cmake",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=cpp",
     "icon": {
@@ -185,7 +160,7 @@
       "OpenJDK",
       "Maven",
       "Quarkus",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=quarkus-rest-api",
     "icon": {
@@ -209,7 +184,7 @@
       "Tech-Preview",
       "Go",
       "Golang",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=go",
     "icon": {
@@ -232,7 +207,7 @@
     "tags": [
       "Python",
       "pip",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=python",
     "icon": {
@@ -257,7 +232,7 @@
       "OpenJDK",
       "Maven",
       "EAP",
-      "UBI8"
+      "UBI9"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=java-jboss-eap",
     "icon": {
