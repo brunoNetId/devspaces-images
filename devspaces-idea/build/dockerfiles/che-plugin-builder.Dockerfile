@@ -7,7 +7,7 @@
 #
 
 # https://registry.access.redhat.com/ubi9/ubi
-FROM registry.redhat.io/ubi9/ubi:9.5-1734495538 as plugin-builder
+FROM registry.redhat.io/ubi9/ubi:9.5-1739751568 as plugin-builder
 
 RUN yum install java-11-openjdk-devel unzip -y --nodocs
 RUN mkdir /plugin && mkdir /plugin-assembly
@@ -24,6 +24,6 @@ RUN ./gradlew build
 RUN find build/distributions -type f -name "che-plugin-*.zip" -exec mv {} "/plugin-assembly/asset-che-plugin-assembly.zip" \;
 
 # https://registry.access.redhat.com/ubi9/ubi-micro
-FROM registry.redhat.io/ubi9/ubi-micro:9.5-1734513256
+FROM registry.redhat.io/ubi9/ubi-micro:9.5-1739776878
 WORKDIR /plugin
 COPY --from=plugin-builder /plugin-assembly/asset-che-plugin-assembly.zip asset-che-plugin-assembly.zip
