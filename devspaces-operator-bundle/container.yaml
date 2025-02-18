@@ -35,7 +35,6 @@ operator_manifests:
 
         # 00_java11-maven-microprofile-xp3/devfile.yaml
         # 00_java11-maven-eap/devfile.yaml
-        rh-mongodb36-container: registry.redhat.io/rhscl/mongodb-36-rhel7
         ubi8-minimal-container: registry.redhat.io/ubi8/ubi-minimal
         ubi8-micro-container: registry.redhat.io/ubi8/ubi-micro
         kube-rbac-proxy-container: openshift4/ose-kube-rbac-proxy
