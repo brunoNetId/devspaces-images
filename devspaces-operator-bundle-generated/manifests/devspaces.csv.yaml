@@ -59,7 +59,7 @@ metadata:
     categories: Developer Tools
     certified: "true"
     containerImage: registry.redhat.io/devspaces/devspaces-rhel9-operator@sha256:21ad5f1b7bfc6a373882501ef40c382f4ff0fd185232ccffde2b0b201dcc1fc8
-    createdAt: "2025-02-17T21:40:01+00:00"
+    createdAt: "2025-02-19T18:08:18+00:00"
     description: Devfile v2 and v1 development solution, 1 instance per cluster, for portable, collaborative k8s workspaces.
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -863,7 +863,7 @@ spec:
                 - name: RELATED_IMAGE_che_server
                   value: registry.redhat.io/devspaces/server-rhel9@sha256:c6559e9a6bcd5f9f9a2be60cd85c6d53ce1e50d962df505775ec645b05b04221
                 - name: RELATED_IMAGE_dashboard
-                  value: registry.redhat.io/devspaces/dashboard-rhel9@sha256:9774b6069b08d62643ff0a68e74bd23800cff477fc2aa7519e657a247eb87088
+                  value: registry.redhat.io/devspaces/dashboard-rhel9@sha256:e4b698548a9ccd617bc5c382ae90a52e6948d56a7b0ea4309c188dd5b6d61127
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_injector
                   value: registry.redhat.io/devspaces/code-rhel9@sha256:6817a9c70cfdaac6a3a12bc93018cba8aeea9c0dc90c72c0e1ffc84953cc2e40
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_runtime_description
@@ -873,15 +873,13 @@ spec:
                 - name: RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9_injector
                   value: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:6db690b9bcebe82706f29276b8fe5872dd3b2538961e06365b17d2c166265ccb
                 - name: RELATED_IMAGE_gateway_authentication_sidecar
-                  value: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:bd49cfc8452b3d96467cc222db9487e120abc6cc5ba81349c6b3703706f36a08
+                  value: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:3e78ec8cdb729a704d5a26e54697f285ba7c0b9afee6160b7ecc703876120dea
                 - name: RELATED_IMAGE_gateway_authorization_sidecar
-                  value: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:9be265f3a5657448fb2a1e6206372a736071893c8b112fcc0761f762330181b7
+                  value: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:a47afaa5ae506ec5a2c18818822f8cd626055168ead3183fb41a7e4338f8517e
                 - name: RELATED_IMAGE_plugin_registry
                   value: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ec5271a57c0b346860fad8f3c920c2c24cc39869602dd5083d1d4c618a7ae6ff
                 - name: RELATED_IMAGE_pvc_jobs
                   value: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
-                - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4xOAo____
-                  value: registry.redhat.io/devspaces/udi-rhel9@sha256:85b597e4dd4b155ba97da97ac5ffe80810e143706ce46203ccac6284a591bd57
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4xOQo____
                   value: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
                 - name: RELATED_IMAGE_single_host_gateway
@@ -1069,7 +1067,7 @@ spec:
   - name: che_server
     image: registry.redhat.io/devspaces/server-rhel9@sha256:c6559e9a6bcd5f9f9a2be60cd85c6d53ce1e50d962df505775ec645b05b04221
   - name: dashboard
-    image: registry.redhat.io/devspaces/dashboard-rhel9@sha256:9774b6069b08d62643ff0a68e74bd23800cff477fc2aa7519e657a247eb87088
+    image: registry.redhat.io/devspaces/dashboard-rhel9@sha256:e4b698548a9ccd617bc5c382ae90a52e6948d56a7b0ea4309c188dd5b6d61127
   - name: editor_definition_che_code_latest_che_code_injector
     image: registry.redhat.io/devspaces/code-rhel9@sha256:6817a9c70cfdaac6a3a12bc93018cba8aeea9c0dc90c72c0e1ffc84953cc2e40
   - name: editor_definition_che_code_latest_che_code_runtime_description
@@ -1079,15 +1077,13 @@ spec:
   - name: editor_definition_che_idea_latest_idea_rhel9_injector
     image: registry.redhat.io/devspaces-tech-preview/idea-rhel9@sha256:6db690b9bcebe82706f29276b8fe5872dd3b2538961e06365b17d2c166265ccb
   - name: gateway_authentication_sidecar
-    image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:bd49cfc8452b3d96467cc222db9487e120abc6cc5ba81349c6b3703706f36a08
+    image: registry.redhat.io/openshift4/ose-oauth-proxy@sha256:3e78ec8cdb729a704d5a26e54697f285ba7c0b9afee6160b7ecc703876120dea
   - name: gateway_authorization_sidecar
-    image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:9be265f3a5657448fb2a1e6206372a736071893c8b112fcc0761f762330181b7
+    image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:a47afaa5ae506ec5a2c18818822f8cd626055168ead3183fb41a7e4338f8517e
   - name: plugin_registry
     image: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ec5271a57c0b346860fad8f3c920c2c24cc39869602dd5083d1d4c618a7ae6ff
   - name: pvc_jobs
     image: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
-  - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4xoao____
-    image: registry.redhat.io/devspaces/udi-rhel9@sha256:85b597e4dd4b155ba97da97ac5ffe80810e143706ce46203ccac6284a591bd57
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4xoqo____
     image: registry.redhat.io/devspaces/udi-rhel9@sha256:624f46843aebd725891fb0b169e63906e0dd1e18638c862815d90781aca343f8
   - name: single_host_gateway
