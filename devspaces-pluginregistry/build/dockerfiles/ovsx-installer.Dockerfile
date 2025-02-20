@@ -7,11 +7,11 @@
 #
 
 # https://registry.access.redhat.com/ubi8/nodejs-18
-FROM registry.access.redhat.com/ubi8/nodejs-18:1-136 as builder
+FROM registry.access.redhat.com/ubi8/nodejs-18:1-136.1739758167 as builder
 USER 1001
 # TODO: do we need to use a cache folder here? 
 ENV npm_config_cache=/tmp/opt/cache
 RUN mkdir -p /tmp/opt/cache && \
-    npm install --location=global ovsx@0.8.3 --prefix /tmp/opt/ovsx --cache /tmp/opt/cache && chmod -R g+rwX /tmp/opt/ovsx && \
+    npm install --location=global @vscode/vsce@2.24.0 ovsx@0.8.3 --prefix /tmp/opt/ovsx --cache /tmp/opt/cache && chmod -R g+rwX /tmp/opt/ovsx && \
     tar -czf ovsx.tar.gz /tmp/opt/ovsx && \
     chmod g+rwX /opt/app-root/src/ovsx.tar.gz
