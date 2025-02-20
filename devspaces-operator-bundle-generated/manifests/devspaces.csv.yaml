@@ -59,7 +59,7 @@ metadata:
     categories: Developer Tools
     certified: "true"
     containerImage: registry.redhat.io/devspaces/devspaces-rhel9-operator@sha256:21ad5f1b7bfc6a373882501ef40c382f4ff0fd185232ccffde2b0b201dcc1fc8
-    createdAt: "2025-02-19T18:08:18+00:00"
+    createdAt: "2025-02-20T15:28:11+00:00"
     description: Devfile v2 and v1 development solution, 1 instance per cluster, for portable, collaborative k8s workspaces.
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -877,7 +877,7 @@ spec:
                 - name: RELATED_IMAGE_gateway_authorization_sidecar
                   value: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:a47afaa5ae506ec5a2c18818822f8cd626055168ead3183fb41a7e4338f8517e
                 - name: RELATED_IMAGE_plugin_registry
-                  value: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ec5271a57c0b346860fad8f3c920c2c24cc39869602dd5083d1d4c618a7ae6ff
+                  value: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:7860ea1bde9b9c36a3a9f580924f3f227cb26008845ba03aa92b2b3a987f987a
                 - name: RELATED_IMAGE_pvc_jobs
                   value: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4xOQo____
@@ -1058,7 +1058,7 @@ spec:
     targetPort: 9443
     type: ConversionWebhook
     webhookPath: /convert
-  replaces: devspacesoperator.v3.18.1
+  replaces: devspacesoperator.v3.18.1-0.1739475915.p
   relatedImages:
   - name: devspaces-rhel9-operator-21ad5f1b7bfc6a373882501ef40c382f4ff0fd185232ccffde2b0b201dcc1fc8-annotation
     image: registry.redhat.io/devspaces/devspaces-rhel9-operator@sha256:21ad5f1b7bfc6a373882501ef40c382f4ff0fd185232ccffde2b0b201dcc1fc8
@@ -1081,7 +1081,7 @@ spec:
   - name: gateway_authorization_sidecar
     image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:a47afaa5ae506ec5a2c18818822f8cd626055168ead3183fb41a7e4338f8517e
   - name: plugin_registry
-    image: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ec5271a57c0b346860fad8f3c920c2c24cc39869602dd5083d1d4c618a7ae6ff
+    image: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:7860ea1bde9b9c36a3a9f580924f3f227cb26008845ba03aa92b2b3a987f987a
   - name: pvc_jobs
     image: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4xoqo____
