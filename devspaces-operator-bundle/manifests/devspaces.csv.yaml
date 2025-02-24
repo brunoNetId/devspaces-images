@@ -925,6 +925,26 @@ spec:
                         value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
                       - name: RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9_injector
                         value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-idea-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_clion_server_latest_editor_injector
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_clion_server_latest_editor_runtime
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-jetbrains-ide-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_idea_server_latest_editor_injector
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_idea_server_latest_editor_runtime
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-jetbrains-ide-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_pycharm_server_latest_editor_injector
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_pycharm_server_latest_editor_runtime
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-jetbrains-ide-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_rubymine_server_latest_editor_injector
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_rubymine_server_latest_editor_runtime
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-jetbrains-ide-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_webstorm_server_latest_editor_injector
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-udi-rhel9:3.19
+                      - name: RELATED_IMAGE_editor_definition_che_webstorm_server_latest_editor_runtime
+                        value: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-jetbrains-ide-rhel9:3.19
                       - name: RELATED_IMAGE_gateway_authentication_sidecar
                         value: registry.redhat.io/openshift4/ose-oauth-proxy:v4.14
                       - name: RELATED_IMAGE_gateway_authorization_sidecar

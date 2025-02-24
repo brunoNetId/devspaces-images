@@ -99,6 +99,7 @@ OAUTH_PROXY_IMAGE="registry.redhat.io/openshift4/ose-oauth-proxy:${PROXY_TAG}"
 UDI_IMAGE_WITH_TAG="${DS_RRIO}/udi-rhel9:${DS_VERSION}"
 CODE_IMAGE_WITH_TAG="${DS_RRIO}/code-rhel9:${DS_VERSION}"
 IDEA_IMAGE_WITH_TAG="${DS_RRIO}/idea-rhel9:${DS_VERSION}"
+JETBRAINS_IMAGE_WITH_TAG="${DS_RRIO}/jetbrains-ide-rhel9:${DS_VERSION}"
 
 # header to reattach to yaml files after yq transform removes it
 COPYRIGHT="#
@@ -357,11 +358,24 @@ for CSVFILE in ${TARGETDIR}/manifests/devspaces.csv.yaml; do
   # by removing upstream values and inserting downstream ones
   # https://github.com/eclipse-che/che/issues/22932
   yq -riY "del(.spec.install.spec.deployments[].spec.template.spec.containers[0].env[] | select(.name | test(\"^RELATED_IMAGE_editor_definition_\")))" "${CSVFILE}"
+# For every editor definition we have to add:
+# [RELATED_IMAGE_editor_definition_<METADATA.NAME>_<METADATA.ATTRIBUTES.VERSION>_<COMPONENT[0].NAME>]=<...>
+# [RELATED_IMAGE_editor_definition_<METADATA.NAME>_<METADATA.ATTRIBUTES.VERSION>_<COMPONENT[1].NAME>]=<...>
   declare -A operator_insertion=(
     ["RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9"]="${UDI_IMAGE_WITH_TAG}"
     ["RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9_injector"]="${IDEA_IMAGE_WITH_TAG}"
     ["RELATED_IMAGE_editor_definition_che_code_latest_che_code_runtime_description"]="${UDI_IMAGE_WITH_TAG}"
     ["RELATED_IMAGE_editor_definition_che_code_latest_che_code_injector"]="${CODE_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_clion_server_latest_editor_injector"]="${JETBRAINS_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_clion_server_latest_editor_runtime"]="${UDI_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_idea_server_latest_editor_injector"]="${JETBRAINS_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_idea_server_latest_editor_runtime"]="${UDI_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_pycharm_server_latest_editor_injector"]="${JETBRAINS_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_pycharm_server_latest_editor_runtime"]="${UDI_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_rubymine_server_latest_editor_injector"]="${JETBRAINS_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_rubymine_server_latest_editor_runtime"]="${UDI_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_webstorm_server_latest_editor_injector"]="${JETBRAINS_IMAGE_WITH_TAG}"
+	["RELATED_IMAGE_editor_definition_che_webstorm_server_latest_editor_runtime"]="${UDI_IMAGE_WITH_TAG}"
   )
 
   # validate che-code editor definitions components
@@ -382,6 +396,20 @@ for CSVFILE in ${TARGETDIR}/manifests/devspaces.csv.yaml; do
     [[ $(echo "${CHE_IDEA_EDITOR_DEFINITION}" | yq -r '.components[] | select(.name=="idea-rhel9-injector") | .container.image') == "" ]]; then
     echo "[ERROR] che-idea editor definition is invalid"; exit 1;
   fi
+
+  # validate JetBrains editors definitions components
+  declare -a jetbrains_ides=("clion" "idea" "pycharm" "rubymine" "webstorm")
+  for ide_name in "${jetbrains_ides[@]}"
+  do
+    CHE_JETBRAINS_SERVER_EDITOR_DEFINITION=$(curl -sL "https://raw.githubusercontent.com/redhat-developer/devspaces-images/${MIDSTM_BRANCH}/devspaces-operator/editors-definitions/che-${ide_name}-server.yaml")
+	if [[ ! $(echo "${CHE_JETBRAINS_SERVER_EDITOR_DEFINITION}" | yq -r '.metadata.name')  == "che-${ide_name}-server" ]] || \
+		[[ ! $(echo "${CHE_JETBRAINS_SERVER_EDITOR_DEFINITION}" | yq -r '.metadata.attributes.version')  == "latest" ]] || \
+		[[ $(echo "${CHE_JETBRAINS_SERVER_EDITOR_DEFINITION}" | yq -r '.components[] | select(.name=="editor-injector") | .container.image')  == "" ]] || \
+		[[ $(echo "${CHE_JETBRAINS_SERVER_EDITOR_DEFINITION}" | yq -r '.components[] | select(.name=="editor-runtime") | .container.image')  == "" ]]; then
+		echo "[ERROR] che-${ide_name}-server editor definition is invalid"
+		exit 1;
+	fi
+  done
 
   for updateName in "${!operator_insertion[@]}"; do
     env="{name: \"${updateName}\", value: \"${operator_insertion[$updateName]}\"}"

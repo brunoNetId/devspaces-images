@@ -42,6 +42,7 @@ operator_manifests:
         devspaces-configbump-rhel9-container: devspaces/configbump-rhel9
         devspaces-dashboard-rhel9-container: devspaces/dashboard-rhel9
         devspaces-idea-rhel9-container: devspaces/idea-rhel9
+        devspaces-jetbrains-ide-rhel9-container: devspaces/jetbrains-ide-rhel9
         devspaces-imagepuller-rhel9-container: devspaces/imagepuller-rhel9
         devspaces-machineexec-rhel9-container: devspaces/machineexec-rhel9
         devspaces-pluginregistry-rhel9-container: devspaces/pluginregistry-rhel9
