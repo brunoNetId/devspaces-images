@@ -53,4 +53,4 @@ operator_manifests:
         devworkspace-operator-bundle-container: devworkspace/devworkspace-operator-bundle
         devworkspace-operator-bundle-package: devworkspace/devworkspace-operator-bundle
         devworkspace-operator-package: devworkspace/devworkspace-operator-bundle
-        devworkspace-operator-container: devworkspace/devworkspace-rhel8-operator
+        devworkspace-operator-container: devworkspace/devworkspace-rhel9-operator
