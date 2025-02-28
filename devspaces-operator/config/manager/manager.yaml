@@ -88,7 +88,7 @@ spec:
             - name: RELATED_IMAGE_dashboard
               value: registry.redhat.io/devspaces/dashboard-rhel9:3.19
             - name: RELATED_IMAGE_devworkspace_controller
-              value: registry.redhat.io/devworkspace/devworkspace-rhel8-operator
+              value: registry.redhat.io/devworkspace/devworkspace-rhel9-operator
             - name: RELATED_IMAGE_gateway_authentication_sidecar
               value: registry.redhat.io/openshift4/ose-oauth-proxy:v4.14
             - name: RELATED_IMAGE_gateway_authorization_sidecar
