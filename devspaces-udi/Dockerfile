@@ -38,9 +38,9 @@ RUN \
     # build kubedock application with dependencies resolved by Cachito
     source $REMOTE_SOURCES_DIR/kubedock/cachito.env && \
     LDFLAGS="-X github.com/joyrex2001/kubedock/internal/config.Date=`date -u +%Y%m%d-%H%M%S`  \
-     -X github.com/joyrex2001/kubedock/internal/config.Build=9d21955b52e4905d916d24e724dcad195aef3515   \
-     -X github.com/joyrex2001/kubedock/internal/config.Version=0.11.0  \
-     -X github.com/joyrex2001/kubedock/internal/config.Image=joyrex2001/kubedock:0.11.0" && \
+     -X github.com/joyrex2001/kubedock/internal/config.Build=88fd5414d15f69468d5090ac1b978fbebafae434   \
+     -X github.com/joyrex2001/kubedock/internal/config.Version=0.18.1  \
+     -X github.com/joyrex2001/kubedock/internal/config.Image=joyrex2001/kubedock:0.18.1" && \
     CGO_ENABLED=0 go build -ldflags "${LDFLAGS}" -o kubedock && \
     chmod +x ./kubedock && \
     ./kubedock version && \
