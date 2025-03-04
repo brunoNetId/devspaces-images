@@ -215,7 +215,7 @@ RUN npm install \
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.redhat.io/ubi9/nodejs-20:9.5-1739783265 as checode-linux-libc-ubi9-builder
+FROM registry.redhat.io/ubi9/nodejs-20:9.5-1741006255 as checode-linux-libc-ubi9-builder
 # hadolint ignore=DL3002
 USER root
 
@@ -427,7 +427,7 @@ RUN npm install \
 # NOTE: can't use scatch images in OSBS, because unable to start container process: exec: \"/bin/sh\": stat /bin/sh: no such file or directory
 # so we must rebuild machineexec binary in this build
 # https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1739801907 as machineexec-builder
+FROM registry.redhat.io/ubi9/go-toolset:9.5-1741020486 as machineexec-builder
 ENV GOPATH=/go/
 # hadolint ignore=DL3002
 USER root
