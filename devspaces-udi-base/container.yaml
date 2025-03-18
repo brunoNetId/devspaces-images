@@ -20,44 +20,6 @@ compose:
 image_build_method: imagebuilder
 remote_sources:
 
-# https://issues.redhat.com/browse/CRW-3531 use gopls 0.10.1 as we can now build with go 1.18
-# https://github.com/golang/tools/releases/tag/gopls%2Fv0.10.1 ==> https://github.com/golang/tools/commit/8321f7bbcfd30300762661ed9188226b42e27ec1
-# use https://github.com/redhat-developer/devspaces/blob/devspaces-3-rhel-9/dependencies/job-config.json#L866-L869 (.Other.gopls)
-- name: gopls
-  remote_source:
-    repo: https://github.com/golang/tools
-    ref: 8321f7bbcfd30300762661ed9188226b42e27ec1
-    pkg_managers:
-      - gomod
-    packages: {"gomod": [{"path": "."}, {"path": "gopls"}]}
-
-# include python lang server and all other all pip requirements (yq) so they can be resolved by Cachito and installed via Dockerfile
-- name: python-deps
-  remote_source:
-    repo: https://github.com/redhat-developer/devspaces-images.git
-    ref: 44e55049dcf46757a4b7b716d7d2d51083c9edf6
-    pkg_managers:
-      - pip
-    packages: {"pip": [{"path": "devspaces-udi/build/python", "requirements_build_files": ["requirements-build.txt"]}]}
-
-# https://issues.redhat.com/browse/CRW-3487 use php xdebug 3.1.6
-# https://github.com/xdebug/xdebug/releases/tag/3.1.6 => https://github.com/xdebug/xdebug/commit/2fe95fed7ee9f1f679680db641f4f48c3f381057
-# use https://github.com/redhat-developer/devspaces/blob/devspaces-3-rhel-9/dependencies/job-config.json#L866-L869 (.Other.xdebug)
-- name: xdebug
-  remote_source:
-    repo: https://github.com/xdebug/xdebug
-    ref: 78ef02f7374db83e152751b4567b5a1bc9d9e86a
-    pkg_managers: []
-
-# CRW-3193 disable until we have a camel-k sample again
-# - name: camelk
-#   remote_source:
-#     repo: https://github.com/apache/camel-k
-#     ref: 706c85dc9e94f38a22c0d4f840ec3646ccb23c40
-#     pkg_managers:
-#       - gomod
-#     packages: {"gomod": [ "path": "." ]}
-
 # https://github.com/joyrex2001/kubedock/releases/tag/0.11.0 => https://github.com/joyrex2001/kubedock/commit/9d21955b52e4905d916d24e724dcad195aef3515
 - name: kubedock
   remote_source:
