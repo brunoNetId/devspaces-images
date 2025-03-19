@@ -7,7 +7,7 @@
 #
 
 # https://registry.access.redhat.com/ubi8/nodejs-18
-FROM registry.access.redhat.com/ubi8/nodejs-18:1-136.1739758167 as builder
+FROM registry.access.redhat.com/ubi8/nodejs-18:1-137 as builder
 USER 1001
 # TODO: do we need to use a cache folder here? 
 ENV npm_config_cache=/tmp/opt/cache
