@@ -18,7 +18,7 @@ FROM quay.io/devspaces/machineexec-rhel8:3.12 as machine-exec
 ##################################################################################################################
 
 # https://registry.access.redhat.com/ubi8/nodejs-20
-FROM registry.access.redhat.com/ubi8/nodejs-20:1-72 as linux-libc-ubi8-builder
+FROM registry.access.redhat.com/ubi8/nodejs-20:1-73 as linux-libc-ubi8-builder
 
 USER root
 
@@ -84,7 +84,7 @@ RUN npm install \
 ##################################################################################################################
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.access.redhat.com/ubi9/nodejs-20:9.5-1737421648 as linux-libc-ubi9-builder
+FROM registry.access.redhat.com/ubi9/nodejs-20:9.5-1741886716 as linux-libc-ubi9-builder
 
 USER root
 
@@ -157,7 +157,7 @@ RUN npm install \
     && chgrp -R 0 /checode && chmod -R g+rwX /checode
 
 # https://registry.access.redhat.com/ubi9
-FROM registry.redhat.io/ubi9:9.5-1736404036 AS ubi-builder
+FROM registry.redhat.io/ubi9:9.5-1741850090 AS ubi-builder
 
 RUN mkdir -p /mnt/rootfs
 RUN yum install --installroot /mnt/rootfs brotli libstdc++ coreutils glibc-minimal-langpack --releasever 9 --setopt install_weak_deps=false --nodocs -y && yum --installroot /mnt/rootfs clean all
@@ -187,7 +187,7 @@ COPY --chmod=755 /build/remote-config /mnt/rootfs/remote/data/Machine/
 ##################################################################################################################
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.access.redhat.com/ubi9-minimal:9.5-1738643652
+FROM registry.access.redhat.com/ubi9-minimal:9.5-1741850109
 COPY --from=ubi-builder /mnt/rootfs/ /
 ENV HOME=/home/che
 USER 1001
