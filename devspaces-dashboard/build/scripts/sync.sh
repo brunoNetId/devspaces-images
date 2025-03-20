@@ -158,7 +158,7 @@ done <   <(find ${TARGETDIR}/ -name "*.json" -type f -print0)
 
 # TODO: Remove this script and yarn 1 files once we have migrated to Konflux
 # Update to use yarn 1 for brew:
-"${TARGETDIR}"/scripts/yarn/change_package_manager.sh
+#"${TARGETDIR}"/scripts/yarn/change_package_manager.sh
 
 # ensure shell scripts are executable
 find ${TARGETDIR}/ -name "*.sh" -exec chmod +x {} \;
