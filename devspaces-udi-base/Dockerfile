@@ -66,7 +66,7 @@ ENV \
     SUMMARY="Red Hat OpenShift Dev Spaces - Universal Developer Image Base container" \
     DESCRIPTION="Red Hat OpenShift Dev Spaces - Universal Developer Image Base container" \
     PRODNAME="devspaces" \
-    COMPNAME="udi-rhel9"
+    COMPNAME="udi-base-rhel9"
 
 LABEL summary="$SUMMARY" \
       description="$DESCRIPTION" \
