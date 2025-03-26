@@ -1,0 +1,36 @@
+---
+####################################################################################
+#### NOTE: CHANGES TO THIS FILE ARE IGNORED BY WEBHOOK TRIGGER (see udi.groovy) ####
+####################################################################################
+
+platforms:
+  # all these keys are optional - see https://osbs.readthedocs.io/en/latest/users.html#image-configuration for more info
+  only:
+  - x86_64
+  - s390x
+  - ppc64le
+
+compose:
+  inherit: false
+  pulp_repos: true
+  signing_intent: release
+  include_unpublished_pulp_repos: true
+
+# instead of docker_api, use imagebuilder for multistage builds
+image_build_method: imagebuilder
+remote_sources:
+
+# https://github.com/joyrex2001/kubedock/releases/tag/0.11.0 => https://github.com/joyrex2001/kubedock/commit/9d21955b52e4905d916d24e724dcad195aef3515
+- name: kubedock
+  remote_source:
+    repo: https://github.com/joyrex2001/kubedock
+    ref: 9d21955b52e4905d916d24e724dcad195aef3515
+    pkg_managers:
+      - gomod
+
+- name: stow
+  remote_source:
+    repo: https://github.com/aspiers/stow
+    ref: 4ef5eca4a9d107b24e712bb4c2c91f47e7e0fb85
+    pkg_managers: []
+    flags: ["include-git-dir"]
