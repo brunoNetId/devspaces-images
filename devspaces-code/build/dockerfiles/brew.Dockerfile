@@ -16,7 +16,7 @@
 #########################################################################
 
 # https://registry.access.redhat.com/ubi8/nodejs-20
-FROM registry.redhat.io/ubi8/nodejs-20:1-73 as checode-linux-libc-ubi8-builder
+FROM registry.redhat.io/ubi8/nodejs-20:1-73.1742991506 as checode-linux-libc-ubi8-builder
 # hadolint ignore=DL3002
 USER root
 
@@ -215,7 +215,7 @@ RUN npm install \
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.redhat.io/ubi9/nodejs-20:9.5-1741886716 as checode-linux-libc-ubi9-builder
+FROM registry.redhat.io/ubi9/nodejs-20:9.5-1742982222 as checode-linux-libc-ubi9-builder
 # hadolint ignore=DL3002
 USER root
 
@@ -427,7 +427,7 @@ RUN npm install \
 # NOTE: can't use scatch images in OSBS, because unable to start container process: exec: \"/bin/sh\": stat /bin/sh: no such file or directory
 # so we must rebuild machineexec binary in this build
 # https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1742890357 as machineexec-builder
+FROM registry.redhat.io/ubi9/go-toolset:9.5-1742984157 as machineexec-builder
 ENV GOPATH=/go/
 # hadolint ignore=DL3002
 USER root
@@ -445,7 +445,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -a -ldflags '-w -s' -a -instal
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9
-FROM registry.redhat.io/ubi9:9.5-1741850090 AS ubi-builder
+FROM registry.redhat.io/ubi9:9.5-1742918310 AS ubi-builder
 
 RUN mkdir -p /mnt/rootfs/projects /mnt/rootfs/home/che /mnt/rootfs/remote/data/Machine/
 # hadolint ignore=DL3033
@@ -490,7 +490,7 @@ RUN rm /mnt/rootfs/etc/hosts
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1741850109
+FROM registry.redhat.io/ubi9-minimal:9.5-1742914212
 COPY --from=ubi-builder /mnt/rootfs/ /
 ENV HOME=/home/che
 USER 1001
