@@ -7,7 +7,7 @@
 #
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1741850109
+FROM registry.redhat.io/ubi9-minimal:9.5-1742914212
 
 RUN microdnf install wget -y --nodocs
 RUN mkdir /ide
