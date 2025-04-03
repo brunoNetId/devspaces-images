@@ -16,7 +16,7 @@
 # The directory is located at /tmp/opt/ovsx/node_modules
 
 # https://registry.access.redhat.com/rhel9-2-els/rhel
-FROM registry.redhat.io/rhel9-2-els/rhel:9.2-1502 as builder
+FROM registry.redhat.io/rhel9-2-els/rhel:9.2-1535 as builder
 
 # hadolint ignore=DL3002
 USER root
