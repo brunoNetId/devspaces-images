@@ -84,7 +84,7 @@ RUN npm install \
 ##################################################################################################################
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.access.redhat.com/ubi9/nodejs-20:9.5-1742982222 as linux-libc-ubi9-builder
+FROM registry.access.redhat.com/ubi9/nodejs-20:9.5-1743584090 as linux-libc-ubi9-builder
 
 USER root
 
