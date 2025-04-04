@@ -176,10 +176,6 @@
     "version": "0.0.6"
   },
   {
-    "id": "redhat.vscode-tekton-pipelines",
-    "version": "1.0.1"
-  },
-  {
     "id": "atlassian.atlascode",
     "version": "3.0.14"
   },
