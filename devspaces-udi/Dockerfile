@@ -9,9 +9,8 @@
 #   Red Hat, Inc. - initial API and implementation
 
 # use rhel9/ for Brew, not ubi9/
-# can pin to specific tag filter using rhel8/go-toolset#^1.17
-# https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1743582279 as go-builder
+#@follow_tag(registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:rhel_9_1.23)
+FROM registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:v1.23.6-202503041452.g6c23478.el9 AS go-builder
 
 USER root
 
@@ -29,19 +28,19 @@ RUN \
     echo 'replace golang.org/x/tools => ../' >> go.mod && \
     # build gopls application with dependencies resolved by Cachito (which are also resolved for 'tools' dependency)
     source $REMOTE_SOURCES_DIR/gopls/cachito.env && \
-    GO111MODULE=on go build -o gopls && \
-    ./gopls version && \
+    GO111MODULE=on go build -mod=mod -o gopls && \
+    ./gopls version
     # END Gopls
 
     # BEGIN Kubedock
-    cd $REMOTE_SOURCES_DIR/kubedock/app && \
+RUN cd $REMOTE_SOURCES_DIR/kubedock/app && \
     # build kubedock application with dependencies resolved by Cachito
     source $REMOTE_SOURCES_DIR/kubedock/cachito.env && \
     LDFLAGS="-X github.com/joyrex2001/kubedock/internal/config.Date=`date -u +%Y%m%d-%H%M%S`  \
-     -X github.com/joyrex2001/kubedock/internal/config.Build=9d21955b52e4905d916d24e724dcad195aef3515   \
-     -X github.com/joyrex2001/kubedock/internal/config.Version=0.11.0  \
-     -X github.com/joyrex2001/kubedock/internal/config.Image=joyrex2001/kubedock:0.11.0" && \
-    CGO_ENABLED=0 go build -ldflags "${LDFLAGS}" -o kubedock && \
+     -X github.com/joyrex2001/kubedock/internal/config.Build=88fd5414d15f69468d5090ac1b978fbebafae434   \
+     -X github.com/joyrex2001/kubedock/internal/config.Version=0.18.1  \
+     -X github.com/joyrex2001/kubedock/internal/config.Image=joyrex2001/kubedock:0.18.1" && \
+    CGO_ENABLED=0 go build -mod=mod -ldflags "${LDFLAGS}" -o kubedock && \
     chmod +x ./kubedock && \
     ./kubedock version && \
     # END Kubedock
