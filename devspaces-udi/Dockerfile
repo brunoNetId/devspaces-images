@@ -29,11 +29,11 @@ RUN \
     # build gopls application with dependencies resolved by Cachito (which are also resolved for 'tools' dependency)
     source $REMOTE_SOURCES_DIR/gopls/cachito.env && \
     GO111MODULE=on go build -mod=mod -o gopls && \
-    ./gopls version
+    ./gopls version && \
     # END Gopls
 
     # BEGIN Kubedock
-RUN cd $REMOTE_SOURCES_DIR/kubedock/app && \
+    cd $REMOTE_SOURCES_DIR/kubedock/app && \
     # build kubedock application with dependencies resolved by Cachito
     source $REMOTE_SOURCES_DIR/kubedock/cachito.env && \
     LDFLAGS="-X github.com/joyrex2001/kubedock/internal/config.Date=`date -u +%Y%m%d-%H%M%S`  \
