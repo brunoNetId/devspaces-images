@@ -225,7 +225,7 @@ for CSVFILE in ${TARGETDIR}/manifests/devspaces.csv.yaml; do
 		-e '/operatorframework.io\/cluster-monitoring:/d' \
 		-e 's|operatorframework.io/suggested-namespace: .+|operatorframework.io/suggested-namespace: openshift-operators|' \
 		-e '/operatorframework.io\/suggested-namespace/a \ \ \ \ operatorframework.io/cluster-monitoring: "true"\n'"$subscriptions" \
-		-e '/annotations\:/i \ \   operatorframework.io/arch.ppc64le\: supported\n    operatorframework.io/arch.s390x\: supported' \
+		-e '/operatorframework.io\/arch.amd64\: supported/a \ \   operatorframework.io/arch.ppc64le\: supported\n    operatorframework.io/arch.s390x\: supported' \
 		-e 's|devworkspace-devspaces-operator|devworkspace-che-operator|' \
 		-e 's|"namespace": ".+"|"namespace": "openshift-devspaces"|' \
 		-i "${CSVFILE}"
