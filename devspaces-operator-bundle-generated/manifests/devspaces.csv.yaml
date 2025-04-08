@@ -1,10 +1,6 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  labels:
-    operatorframework.io/arch.amd64: supported
-    operatorframework.io/arch.arm64: supported
-    operatorframework.io/os.linux: supported
   annotations:
     alm-examples: |-
       [
@@ -59,7 +55,7 @@ metadata:
     categories: Developer Tools
     certified: "true"
     containerImage: registry.redhat.io/devspaces/devspaces-rhel9-operator@sha256:09fc93e791a906e15a10c9e4eb84dda3e4cdff6c073cf367602092d40d6df467
-    createdAt: "2025-04-08T04:36:41+00:00"
+    createdAt: "2025-04-08T19:20:50+00:00"
     description: Devfile v2 and v1 development solution, 1 instance per cluster, for portable, collaborative k8s workspaces.
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -79,6 +75,12 @@ metadata:
     repository: https://github.com/redhat-developer/devspaces-images/
     support: Red Hat
     skipRange: '>=3.0.0 <3.20.0'
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/arch.ppc64le: supported
+    operatorframework.io/arch.s390x: supported
+    operatorframework.io/arch.arm64: supported
+    operatorframework.io/os.linux: supported
   name: devspacesoperator.v3.20.0
   namespace: placeholder
 spec:
