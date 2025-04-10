@@ -10,7 +10,7 @@
 #
 
 # https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1744194661 as builder
+FROM registry-proxy.engineering.redhat.com/rh-osbs/openshift-golang-builder:rhel_9_1.23 as builder
 ENV GOPATH=/go/ \
     CGO_ENABLED=1
 ARG SKIP_TESTS="false"
