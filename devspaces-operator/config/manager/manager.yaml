@@ -58,13 +58,17 @@ spec:
                 "SETUID"]}}'
             - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DEFAULTCOMPONENTS
               value: '[{"name": "universal-developer-image", "container": {"image":
-                "registry.redhat.io/devspaces/udi-rhel9@sha256:c4a47510e19bba187767225b23ee7fcad73b93e579a3a88b088027fd5c8f7797"}}]'
+                "registry.redhat.io/devspaces/udi-rhel9@sha256:cdb28f694cc9ceea8999f5ec2bad33a92c6d03e16814bfd08ccbb0c0fb1d815a"}}]'
             - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DEFAULTEDITOR
               value: che-incubator/che-code/latest
             - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DISABLECONTAINERBUILDCAPABILITIES
               value: 'false'
             - name: CHE_FLAVOR
               value: devspaces
+            - name: CHE_OPERATOR_WORKSPACES_CONFIG_CONTROLLER_ANNOTATIONS_TO_REMOVE_BEFORE_SYNC_REGEXP
+              value: ''
+            - name: CHE_OPERATOR_WORKSPACES_CONFIG_CONTROLLER_LABELS_TO_REMOVE_BEFORE_SYNC_REGEXP
+              value: 'argocd[.]argoproj[.]io/.+'
             - name: CHE_VERSION
               value: 3.20.0
             - name: CONSOLE_LINK_DISPLAY_NAME
