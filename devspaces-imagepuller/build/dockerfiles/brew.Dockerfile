@@ -9,7 +9,7 @@
 #   Red Hat, Inc. - initial API and implementation
 #
 # https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1739801907  as builder
+FROM registry.redhat.io/ubi9/go-toolset:9.5-1744294473  as builder
 ENV GOPATH=/go/ \
     GO111MODULE=on
 
@@ -27,7 +27,7 @@ RUN adduser appuser && \
     make build 
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1739420147
+FROM registry.redhat.io/ubi9-minimal:9.5-1742914212
 USER root
 RUN microdnf -y update && microdnf clean all && rm -rf /var/cache/yum && echo "Installed Packages" && rpm -qa | sort -V && echo "End Of Installed Packages"
 
