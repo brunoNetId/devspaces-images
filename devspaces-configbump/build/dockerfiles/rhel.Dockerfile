@@ -12,7 +12,7 @@
 # see also brew.Dockerfile
 
 # https://registry.access.redhat.com/ubi9/go-toolset
-FROM registry.redhat.io/ubi9/go-toolset:9.5-1744194661 as builder
+FROM registry.redhat.io/ubi9/go-toolset:9.5-1744294473 as builder
 USER 0
 ENV GOPATH=/go/ \
     CGO_ENABLED=1
