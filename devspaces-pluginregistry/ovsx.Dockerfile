@@ -34,7 +34,8 @@ RUN source $REMOTE_SOURCES_DIR/devspaces-pluginregistry/cachito.env; \
        cat $REMOTE_SOURCES_DIR/devspaces-pluginregistry/cachito.env 
 
 # put the node_modules of ovsx npm library into /tmp/opt/ovsx location so we can copy them to the final image
-RUN cd $REMOTE_SOURCES_DIR/devspaces-pluginregistry/app/devspaces-pluginregistry/cachito/ovsx \
+RUN source $REMOTE_SOURCES_DIR/devspaces-pluginregistry/cachito.env \
+ && cd $REMOTE_SOURCES_DIR/devspaces-pluginregistry/app/devspaces-pluginregistry/cachito/ovsx \
  && npm install \
  && mkdir -p /tmp/opt/ovsx && cp -r $REMOTE_SOURCES_DIR/devspaces-pluginregistry/app/devspaces-pluginregistry/cachito/ovsx/node_modules/. /tmp/opt/ovsx/node_modules \
  && echo "npm version:" \

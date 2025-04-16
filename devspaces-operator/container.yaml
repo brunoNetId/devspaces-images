@@ -15,6 +15,7 @@ compose:
 # instead of docker_api, use imagebuilder for multistage builds
 image_build_method: imagebuilder
 
+remote_sources_version: 2
 remote_sources:
 - name: devspaces-images-operator
   remote_source:

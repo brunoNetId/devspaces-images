@@ -18,6 +18,8 @@ compose:
 
 # instead of docker_api, use imagebuilder for multistage builds
 image_build_method: imagebuilder
+
+remote_sources_version: 2
 remote_sources:
 
 # https://issues.redhat.com/browse/CRW-3531 use gopls 0.10.1 as we can now build with go 1.18

@@ -24,13 +24,14 @@ USER 0
 COPY $REMOTE_SOURCES $REMOTE_SOURCES_DIR
 
 # hadolint ignore=SC2086
-RUN source $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/cachito.env
+#RUN source $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/cachito.env
 
 # It's important to build the status-app in the sources dir.
 # Since there's .npmrc file that contains a relative path to the certificates
 # required for accessing the Cachito npm cache.
 WORKDIR $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/app/devspaces-jetbrains-ide/status-app
-RUN npm install
+RUN source $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/cachito.env && \
+    npm install
 
 WORKDIR $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/app/devspaces-jetbrains-ide/
 

@@ -326,6 +326,7 @@ RUN \
     set -x; \
     # compile xdebug from the container-yaml-name/app/ folder
     cd $REMOTE_SOURCES_DIR/xdebug/app/ && \
+    source $REMOTE_SOURCES_DIR/xdebug/cachito.env && \
     # ls -la . && \
     # According to https://xdebug.org/docs/faq#api, must have the same value from php -i | grep "Zend Extension Build" and phpize | grep "Extension Api"
     # Zend Extension Build => API320180731,NTS

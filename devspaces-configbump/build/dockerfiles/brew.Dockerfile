@@ -26,6 +26,7 @@ WORKDIR $REMOTE_SOURCES_DIR/devspaces-images-configbump/app/devspaces-configbump
 RUN dnf -y install golang && \
     export ARCH="$(uname -m)" && if [[ ${ARCH} == "x86_64" ]]; then export ARCH="amd64"; elif [[ ${ARCH} == "aarch64" ]]; then export ARCH="arm64"; fi && \
     # NOTE: cannot go mod download && go mod verify in Brew - use cachito instead
+    source $REMOTE_SOURCES_DIR/devspaces-images-configbump/cachito.env && \
     go test -v  ./... && \
     # to test FIPS compliance, run https://github.com/openshift/check-payload#scan-a-container-or-operator-image against a built image
     GOOS=linux GOARCH=${ARCH} go build -a -ldflags '-w -s' -a -installsuffix cgo -o configbump cmd/configbump/main.go && \
