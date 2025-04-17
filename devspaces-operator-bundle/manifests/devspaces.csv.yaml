@@ -59,7 +59,7 @@ metadata:
     categories: Developer Tools
     certified: "true"
     containerImage: registry-proxy.engineering.redhat.com/rh-osbs/devspaces-operator:3.21
-    createdAt: "2025-04-17T00:16:56+00:00"
+    createdAt: "2025-04-17T00:27:43+00:00"
     description: Devfile v2 and v1 development solution, 1 instance per cluster, for
       portable, collaborative k8s workspaces.
     features.operators.openshift.io/cnf: "false"
@@ -888,7 +888,7 @@ spec:
                           {"add": ["SETGID", "SETUID"]}}'
                       - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DEFAULTCOMPONENTS
                         value: '[{"name": "universal-developer-image", "container":
-                          {"image": "registry.redhat.io/devspaces/udi-rhel9@sha256:f4e06aee03587554a2416b560a691004441f6d10cfdedfb2f939bdbd11cb0908"}}]'
+                          {"image": "registry.redhat.io/devspaces/udi-rhel9@sha256:0ed69d7ada1fcc9abb70cb8d70464fd6b2dcf708a4e7952aa2fbeabb687fc55d"}}]'
                       - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DEFAULTEDITOR
                         value: che-incubator/che-code/latest
                       - name: CHE_DEFAULT_SPEC_DEVENVIRONMENTS_DISABLECONTAINERBUILDCAPABILITIES
