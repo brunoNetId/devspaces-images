@@ -574,11 +574,11 @@
       },
       "3.21": {
         "CSV_VERSION": "3.21.0",
-        "CSV_VERSION_PREV": "3.19.0"
+        "CSV_VERSION_PREV": "3.20.0"
       },
       "3.x": {
         "CSV_VERSION": "3.21.0",
-        "CSV_VERSION_PREV": "3.19.0"
+        "CSV_VERSION_PREV": "3.20.0"
       }
     }
   },
