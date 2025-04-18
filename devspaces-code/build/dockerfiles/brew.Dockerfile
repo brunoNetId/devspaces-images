@@ -107,22 +107,6 @@ RUN git init .; \
 RUN sed -i -r -e '/function npmInstall/ !s|^[^#]*npmInstal|//&|' build/npm/postinstall.js
 # ... and run the dependencies installation manually for each sub-package listed in the 'code/build/npm/dirs.js' (except the 'test' folder).
 
-# Cachito clears all project's '.npmrc' files, To make sure npm is configured to the local Nexus.
-# To avoid any possible issues, like failure of build because of missing 'ms_build_id', or 'target' properties,
-# or @parcel/watcher skipping compilation because of missing 'build_from_source' flag.
-# We need to restore some of the fields before running the build.
-# https://github.com/microsoft/vscode/blob/bceaaf84a27c3a95a0cdfc79287e3215b56b951c/build/gulpfile.reh.js#L128
-RUN echo 'target="30.5.1"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'ms_build_id="10306386"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'runtime="electron"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'build_from_source="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'legacy-peer-deps="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'timeout=180000' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'target="20.16.0"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'ms_build_id="289487"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'build_from_source="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'legacy-peer-deps="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc;
-
 RUN set -x; \
     NODE_ARCH=$(echo "console.log(process.arch)" | node) \
     && NODE_VERSION=$(cat $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc | grep target | cut -d '=' -f 2 | tr -d '"') \
@@ -314,22 +298,6 @@ RUN git init .; \
 # The workaround is to disable the 'npm install' call for the sub-packages ...
 RUN sed -i -r -e '/function npmInstall/ !s|^[^#]*npmInstal|//&|' build/npm/postinstall.js
 # ... and run the dependencies installation manually for each sub-package listed in the 'code/build/npm/dirs.js' (except the 'test' folder).
-
-# Cachito clears all project's '.npmrc' files, To make sure npm is configured to the local Nexus.
-# To avoid any possible issues, like failure of build because of missing 'ms_build_id', or 'target' properties,
-# or @parcel/watcher skipping compilation because of missing 'build_from_source' flag.
-# We need to restore some of the fields before running the build.
-# https://github.com/microsoft/vscode/blob/bceaaf84a27c3a95a0cdfc79287e3215b56b951c/build/gulpfile.reh.js#L128
-RUN echo 'target="30.5.1"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'ms_build_id="10306386"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'runtime="electron"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'build_from_source="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'legacy-peer-deps="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'timeout=180000' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/.npmrc; \
-    echo 'target="20.16.0"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'ms_build_id="289487"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'build_from_source="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc; \
-    echo 'legacy-peer-deps="true"' >> $REMOTE_SOURCES_DIR/devspaces-images-code/app/devspaces-code/code/remote/.npmrc;
 
 RUN set -x; \
     NODE_ARCH=$(echo "console.log(process.arch)" | node) \
