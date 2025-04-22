@@ -12,13 +12,16 @@ Retrying until it Succeeds
 TODO: add schema
 -->
 
-The Retry middleware reissues requests a given number of times to a backend server if that server does not reply.
-As soon as the server answers, the middleware stops retrying, regardless of the response status.
+The Retry middleware reissues requests a given number of times when it cannot contact the backend service. 
+This applies at the transport level (TCP). 
+If the service does not respond to the initial connection attempt, the middleware retries.
+However, once the service responds, regardless of the HTTP status code, the middleware considers it operational and stops retrying.
+This means that the retry mechanism does not handle HTTP errors; it only retries when there is no response at the TCP level.
 The Retry middleware has an optional configuration to enable an exponential backoff.
 
 ## Configuration Examples
 
-```yaml tab="Docker"
+```yaml tab="Docker & Swarm"
 # Retry 4 times with exponential backoff
 labels:
   - "traefik.http.middlewares.test-retry.retry.attempts=4"
@@ -41,20 +44,6 @@ spec:
 # Retry 4 times with exponential backoff
 - "traefik.http.middlewares.test-retry.retry.attempts=4"
 - "traefik.http.middlewares.test-retry.retry.initialinterval=100ms"
-```
-
-```json tab="Marathon"
-"labels": {
-  "traefik.http.middlewares.test-retry.retry.attempts": "4",
-  "traefik.http.middlewares.test-retry.retry.initialinterval": "100ms",
-}
-```
-
-```yaml tab="Rancher"
-# Retry 4 times with exponential backoff
-labels:
-  - "traefik.http.middlewares.test-retry.retry.attempts=4"
-  - "traefik.http.middlewares.test-retry.retry.initialinterval=100ms"
 ```
 
 ```yaml tab="File (YAML)"

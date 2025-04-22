@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httptrace"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -15,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ptypes "github.com/traefik/paerser/types"
-	"github.com/traefik/traefik/v2/pkg/config/dynamic"
-	"github.com/traefik/traefik/v2/pkg/testhelpers"
+	"github.com/traefik/traefik/v3/pkg/config/dynamic"
+	"github.com/traefik/traefik/v3/pkg/testhelpers"
 )
 
 func TestRetry(t *testing.T) {
@@ -100,17 +101,25 @@ func TestRetry(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			retryAttempts := 0
-			next := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				// This signals that a connection will be established with the backend
+				// to enable the Retry middleware mechanism.
+				shouldRetry := ContextShouldRetry(req.Context())
+				if shouldRetry != nil {
+					shouldRetry(true)
+				}
+
 				retryAttempts++
 
 				if retryAttempts > test.amountFaultyEndpoints {
-					// calls WroteHeaders on httptrace.
-					_ = r.Write(io.Discard)
+					// This signals that request headers have been sent to the backend.
+					if shouldRetry != nil {
+						shouldRetry(false)
+					}
 
 					rw.WriteHeader(http.StatusOK)
 					return
@@ -152,27 +161,16 @@ func TestRetryEmptyServerList(t *testing.T) {
 	assert.Equal(t, 0, retryListener.timesCalled)
 }
 
-func TestRetryListeners(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	retryListeners := Listeners{&countingRetryListener{}, &countingRetryListener{}}
-
-	retryListeners.Retried(req, 1)
-	retryListeners.Retried(req, 1)
-
-	for _, retryListener := range retryListeners {
-		listener := retryListener.(*countingRetryListener)
-		if listener.timesCalled != 2 {
-			t.Errorf("retry listener was called %d time(s), want %d time(s)", listener.timesCalled, 2)
-		}
-	}
-}
-
 func TestMultipleRetriesShouldNotLooseHeaders(t *testing.T) {
 	attempt := 0
-	expectedHeaderName := "X-Foo-Test-2"
 	expectedHeaderValue := "bar"
 
 	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		shouldRetry := ContextShouldRetry(req.Context())
+		if shouldRetry != nil {
+			shouldRetry(true)
+		}
+
 		headerName := fmt.Sprintf("X-Foo-Test-%d", attempt)
 		rw.Header().Add(headerName, expectedHeaderValue)
 		if attempt < 2 {
@@ -181,43 +179,54 @@ func TestMultipleRetriesShouldNotLooseHeaders(t *testing.T) {
 		}
 
 		// Request has been successfully written to backend
-		trace := httptrace.ContextClientTrace(req.Context())
-		trace.WroteHeaders()
+		shouldRetry(false)
 
-		// And we decide to answer to client
+		// And we decide to answer to client.
 		rw.WriteHeader(http.StatusNoContent)
 	})
 
 	retry, err := New(context.Background(), next, dynamic.Retry{Attempts: 3}, &countingRetryListener{}, "traefikTest")
 	require.NoError(t, err)
 
-	responseRecorder := httptest.NewRecorder()
-	retry.ServeHTTP(responseRecorder, testhelpers.MustNewRequest(http.MethodGet, "http://test", http.NoBody))
+	res := httptest.NewRecorder()
+	retry.ServeHTTP(res, testhelpers.MustNewRequest(http.MethodGet, "http://test", http.NoBody))
 
-	headerValue := responseRecorder.Header().Get(expectedHeaderName)
-
-	// Validate if we have the correct header
-	if headerValue != expectedHeaderValue {
-		t.Errorf("Expected to have %s for header %s, got %s", expectedHeaderValue, expectedHeaderName, headerValue)
-	}
+	// The third header attempt is kept.
+	headerValue := res.Header().Get("X-Foo-Test-2")
+	assert.Equal(t, expectedHeaderValue, headerValue)
 
 	// Validate that we don't have headers from previous attempts
-	for i := 0; i < attempt; i++ {
+	for i := range attempt {
 		headerName := fmt.Sprintf("X-Foo-Test-%d", i)
-		headerValue = responseRecorder.Header().Get("headerName")
+		headerValue = res.Header().Get(headerName)
 		if headerValue != "" {
 			t.Errorf("Expected no value for header %s, got %s", headerName, headerValue)
 		}
 	}
 }
 
-// countingRetryListener is a Listener implementation to count the times the Retried fn is called.
-type countingRetryListener struct {
-	timesCalled int
-}
+func TestRetryShouldNotLooseHeadersOnWrite(t *testing.T) {
+	next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		rw.Header().Add("X-Foo-Test", "bar")
 
-func (l *countingRetryListener) Retried(req *http.Request, attempt int) {
-	l.timesCalled++
+		// Request has been successfully written to backend.
+		shouldRetry := ContextShouldRetry(req.Context())
+		if shouldRetry != nil {
+			shouldRetry(false)
+		}
+		// And we decide to answer to client without calling WriteHeader.
+		_, err := rw.Write([]byte("bar"))
+		require.NoError(t, err)
+	})
+
+	retry, err := New(context.Background(), next, dynamic.Retry{Attempts: 3}, &countingRetryListener{}, "traefikTest")
+	require.NoError(t, err)
+
+	res := httptest.NewRecorder()
+	retry.ServeHTTP(res, testhelpers.MustNewRequest(http.MethodGet, "http://test", http.NoBody))
+
+	headerValue := res.Header().Get("X-Foo-Test")
+	assert.Equal(t, "bar", headerValue)
 }
 
 func TestRetryWithFlush(t *testing.T) {
@@ -271,17 +280,28 @@ func TestRetryWebsocket(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			retryAttempts := 0
-			next := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			next := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+				// This signals that a connection will be established with the backend
+				// to enable the Retry middleware mechanism.
+				shouldRetry := ContextShouldRetry(req.Context())
+				if shouldRetry != nil {
+					shouldRetry(true)
+				}
+
 				retryAttempts++
 
 				if retryAttempts > test.amountFaultyEndpoints {
+					// This signals that request headers have been sent to the backend.
+					if shouldRetry != nil {
+						shouldRetry(false)
+					}
+
 					upgrader := websocket.Upgrader{}
-					_, err := upgrader.Upgrade(rw, r, nil)
+					_, err := upgrader.Upgrade(rw, req, nil)
 					if err != nil {
 						http.Error(rw, err.Error(), http.StatusInternalServerError)
 					}
@@ -308,4 +328,92 @@ func TestRetryWebsocket(t *testing.T) {
 			assert.Equal(t, test.expectedRetryAttempts, retryListener.timesCalled)
 		})
 	}
+}
+
+// This test is an adapted version of net/http/httputil.Test1xxResponses test.
+func Test1xxResponses(t *testing.T) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Add("Link", "</style.css>; rel=preload; as=style")
+		h.Add("Link", "</script.js>; rel=preload; as=script")
+		w.WriteHeader(http.StatusEarlyHints)
+
+		h.Add("Link", "</foo.js>; rel=preload; as=script")
+		w.WriteHeader(http.StatusProcessing)
+
+		_, _ = w.Write([]byte("Hello"))
+	})
+
+	retryListener := &countingRetryListener{}
+	retry, err := New(context.Background(), next, dynamic.Retry{Attempts: 1}, retryListener, "traefikTest")
+	require.NoError(t, err)
+
+	server := httptest.NewServer(retry)
+	t.Cleanup(server.Close)
+	frontendClient := server.Client()
+
+	checkLinkHeaders := func(t *testing.T, expected, got []string) {
+		t.Helper()
+
+		if len(expected) != len(got) {
+			t.Errorf("Expected %d link headers; got %d", len(expected), len(got))
+		}
+
+		for i := range expected {
+			if i >= len(got) {
+				t.Errorf("Expected %q link header; got nothing", expected[i])
+
+				continue
+			}
+
+			if expected[i] != got[i] {
+				t.Errorf("Expected %q link header; got %q", expected[i], got[i])
+			}
+		}
+	}
+
+	var respCounter uint8
+	trace := &httptrace.ClientTrace{
+		Got1xxResponse: func(code int, header textproto.MIMEHeader) error {
+			switch code {
+			case http.StatusEarlyHints:
+				checkLinkHeaders(t, []string{"</style.css>; rel=preload; as=style", "</script.js>; rel=preload; as=script"}, header["Link"])
+			case http.StatusProcessing:
+				checkLinkHeaders(t, []string{"</style.css>; rel=preload; as=style", "</script.js>; rel=preload; as=script", "</foo.js>; rel=preload; as=script"}, header["Link"])
+			default:
+				t.Error("Unexpected 1xx response")
+			}
+
+			respCounter++
+
+			return nil
+		},
+	}
+	req, _ := http.NewRequestWithContext(httptrace.WithClientTrace(context.Background(), trace), http.MethodGet, server.URL, nil)
+
+	res, err := frontendClient.Do(req)
+	assert.NoError(t, err)
+
+	defer res.Body.Close()
+
+	if respCounter != 2 {
+		t.Errorf("Expected 2 1xx responses; got %d", respCounter)
+	}
+	checkLinkHeaders(t, []string{"</style.css>; rel=preload; as=style", "</script.js>; rel=preload; as=script", "</foo.js>; rel=preload; as=script"}, res.Header["Link"])
+
+	body, _ := io.ReadAll(res.Body)
+	if string(body) != "Hello" {
+		t.Errorf("Read body %q; want Hello", body)
+	}
+
+	assert.Equal(t, 0, retryListener.timesCalled)
+}
+
+// countingRetryListener is a Listener implementation to count the times the Retried fn is called.
+type countingRetryListener struct {
+	timesCalled int
+}
+
+func (l *countingRetryListener) Retried(req *http.Request, attempt int) {
+	l.timesCalled++
 }

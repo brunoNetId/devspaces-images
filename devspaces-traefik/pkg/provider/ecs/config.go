@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"strings"
 
-	"github.com/aws/aws-sdk-go/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/docker/go-connections/nat"
-	"github.com/traefik/traefik/v2/pkg/config/dynamic"
-	"github.com/traefik/traefik/v2/pkg/config/label"
-	"github.com/traefik/traefik/v2/pkg/log"
-	"github.com/traefik/traefik/v2/pkg/provider"
-	"github.com/traefik/traefik/v2/pkg/provider/constraints"
+	"github.com/rs/zerolog/log"
+	"github.com/traefik/traefik/v3/pkg/config/dynamic"
+	"github.com/traefik/traefik/v3/pkg/config/label"
+	"github.com/traefik/traefik/v3/pkg/provider"
+	"github.com/traefik/traefik/v3/pkg/provider/constraints"
 )
 
 func (p *Provider) buildConfiguration(ctx context.Context, instances []ecsInstance) *dynamic.Configuration {
@@ -22,17 +22,16 @@ func (p *Provider) buildConfiguration(ctx context.Context, instances []ecsInstan
 
 	for _, instance := range instances {
 		instanceName := getServiceName(instance) + "-" + instance.ID
-		ctxContainer := log.With(ctx, log.Str("ecs-instance", instanceName))
+		logger := log.Ctx(ctx).With().Str("ecs-instance", instanceName).Logger()
+		ctxContainer := logger.WithContext(ctx)
 
 		if !p.filterInstance(ctxContainer, instance) {
 			continue
 		}
 
-		logger := log.FromContext(ctxContainer)
-
 		confFromLabel, err := label.DecodeConfiguration(instance.Labels)
 		if err != nil {
-			logger.Error(err)
+			logger.Error().Err(err).Send()
 			continue
 		}
 
@@ -42,7 +41,7 @@ func (p *Provider) buildConfiguration(ctx context.Context, instances []ecsInstan
 
 			err := p.buildTCPServiceConfiguration(instance, confFromLabel.TCP)
 			if err != nil {
-				logger.Error(err)
+				logger.Error().Err(err).Send()
 				continue
 			}
 			provider.BuildTCPRouterConfiguration(ctxContainer, confFromLabel.TCP)
@@ -53,7 +52,7 @@ func (p *Provider) buildConfiguration(ctx context.Context, instances []ecsInstan
 
 			err := p.buildUDPServiceConfiguration(instance, confFromLabel.UDP)
 			if err != nil {
-				logger.Error(err)
+				logger.Error().Err(err).Send()
 				continue
 			}
 			provider.BuildUDPRouterConfiguration(ctxContainer, confFromLabel.UDP)
@@ -68,7 +67,7 @@ func (p *Provider) buildConfiguration(ctx context.Context, instances []ecsInstan
 
 		err = p.buildServiceConfiguration(ctxContainer, instance, confFromLabel.HTTP)
 		if err != nil {
-			logger.Error(err)
+			logger.Error().Err(err).Send()
 			continue
 		}
 
@@ -94,11 +93,10 @@ func (p *Provider) buildTCPServiceConfiguration(instance ecsInstance, configurat
 	serviceName := getServiceName(instance)
 
 	if len(configuration.Services) == 0 {
-		configuration.Services = make(map[string]*dynamic.TCPService)
-		lb := &dynamic.TCPServersLoadBalancer{}
-		lb.SetDefaults()
-		configuration.Services[serviceName] = &dynamic.TCPService{
-			LoadBalancer: lb,
+		configuration.Services = map[string]*dynamic.TCPService{
+			serviceName: {
+				LoadBalancer: new(dynamic.TCPServersLoadBalancer),
+			},
 		}
 	}
 
@@ -156,40 +154,40 @@ func (p *Provider) buildServiceConfiguration(_ context.Context, instance ecsInst
 }
 
 func (p *Provider) filterInstance(ctx context.Context, instance ecsInstance) bool {
-	logger := log.FromContext(ctx)
+	logger := log.Ctx(ctx)
 
 	if instance.machine == nil {
-		logger.Debug("Filtering ecs instance with nil machine")
+		logger.Debug().Msg("Filtering ecs instance with nil machine")
 		return false
 	}
 
-	if strings.ToLower(instance.machine.state) != ec2.InstanceStateNameRunning {
-		logger.Debugf("Filtering ecs instance with an incorrect state %s (%s) (state = %s)", instance.Name, instance.ID, instance.machine.state)
+	if instance.machine.state != ec2types.InstanceStateNameRunning {
+		logger.Debug().Msgf("Filtering ecs instance with an incorrect state %s (%s) (state = %s)", instance.Name, instance.ID, instance.machine.state)
 		return false
 	}
 
-	if instance.machine.healthStatus == "UNHEALTHY" {
-		logger.Debugf("Filtering unhealthy ecs instance %s (%s)", instance.Name, instance.ID)
+	if instance.machine.healthStatus == ecstypes.HealthStatusUnhealthy {
+		logger.Debug().Msgf("Filtering unhealthy ecs instance %s (%s)", instance.Name, instance.ID)
 		return false
 	}
 
 	if len(instance.machine.privateIP) == 0 {
-		logger.Debugf("Filtering ecs instance without an ip address %s (%s)", instance.Name, instance.ID)
+		logger.Debug().Msgf("Filtering ecs instance without an ip address %s (%s)", instance.Name, instance.ID)
 		return false
 	}
 
 	if !instance.ExtraConf.Enable {
-		logger.Debugf("Filtering disabled ecs instance %s (%s)", instance.Name, instance.ID)
+		logger.Debug().Msgf("Filtering disabled ecs instance %s (%s)", instance.Name, instance.ID)
 		return false
 	}
 
 	matches, err := constraints.MatchLabels(instance.Labels, p.Constraints)
 	if err != nil {
-		logger.Errorf("Error matching constraint expression: %v", err)
+		logger.Error().Err(err).Msg("Error matching constraint expression")
 		return false
 	}
 	if !matches {
-		logger.Debugf("Container pruned by constraint expression: %q", p.Constraints)
+		logger.Debug().Msgf("Container pruned by constraint expression: %q", p.Constraints)
 		return false
 	}
 
@@ -293,9 +291,9 @@ func (p *Provider) getIPPort(instance ecsInstance, serverPort string) (string, s
 func getPort(instance ecsInstance, serverPort string) string {
 	if len(serverPort) > 0 {
 		for _, port := range instance.machine.ports {
-			containerPort := strconv.FormatInt(port.containerPort, 10)
+			containerPort := strconv.FormatInt(int64(port.containerPort), 10)
 			if serverPort == containerPort {
-				return strconv.FormatInt(port.hostPort, 10)
+				return strconv.FormatInt(int64(port.hostPort), 10)
 			}
 		}
 
@@ -304,7 +302,7 @@ func getPort(instance ecsInstance, serverPort string) string {
 
 	var ports []nat.Port
 	for _, port := range instance.machine.ports {
-		natPort, err := nat.NewPort(port.protocol, strconv.FormatInt(port.hostPort, 10))
+		natPort, err := nat.NewPort(string(port.protocol), strconv.FormatInt(int64(port.hostPort), 10))
 		if err != nil {
 			continue
 		}
@@ -318,8 +316,7 @@ func getPort(instance ecsInstance, serverPort string) string {
 	nat.Sort(ports, less)
 
 	if len(ports) > 0 {
-		min := ports[0]
-		return min.Port()
+		return ports[0].Port()
 	}
 
 	return ""

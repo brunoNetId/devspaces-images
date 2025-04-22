@@ -15,8 +15,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/traefik/traefik/v2/pkg/config/dynamic"
-	"github.com/traefik/traefik/v2/pkg/testhelpers"
+	"github.com/traefik/traefik/v3/pkg/config/dynamic"
+	"github.com/traefik/traefik/v3/pkg/testhelpers"
 )
 
 const (
@@ -310,7 +310,6 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -320,7 +319,7 @@ func TestPassTLSClientCert_PEM(t *testing.T) {
 			res := httptest.NewRecorder()
 			req := testhelpers.MustNewRequest(http.MethodGet, "http://example.com/foo", nil)
 
-			if test.certContents != nil && len(test.certContents) > 0 {
+			if len(test.certContents) > 0 {
 				req.TLS = buildTLSWith(test.certContents)
 			}
 
@@ -533,7 +532,6 @@ func TestPassTLSClientCert_certInfo(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -543,7 +541,7 @@ func TestPassTLSClientCert_certInfo(t *testing.T) {
 			res := httptest.NewRecorder()
 			req := testhelpers.MustNewRequest(http.MethodGet, "http://example.com/foo", nil)
 
-			if test.certContents != nil && len(test.certContents) > 0 {
+			if len(test.certContents) > 0 {
 				req.TLS = buildTLSWith(test.certContents)
 			}
 
@@ -604,7 +602,6 @@ WqeUSNGYV//RunTeuRDAf5OxehERb1srzBXhRZ3cZdzXbgR/`,
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -645,7 +642,6 @@ func Test_getSANs(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 

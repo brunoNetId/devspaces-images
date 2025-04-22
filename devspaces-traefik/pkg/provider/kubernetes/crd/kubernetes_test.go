@@ -12,23 +12,32 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	ptypes "github.com/traefik/paerser/types"
-	"github.com/traefik/traefik/v2/pkg/config/dynamic"
-	"github.com/traefik/traefik/v2/pkg/provider"
-	traefikcrdfake "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/generated/clientset/versioned/fake"
-	traefikv1alpha1 "github.com/traefik/traefik/v2/pkg/provider/kubernetes/crd/traefikio/v1alpha1"
-	"github.com/traefik/traefik/v2/pkg/provider/kubernetes/k8s"
-	"github.com/traefik/traefik/v2/pkg/tls"
-	"github.com/traefik/traefik/v2/pkg/types"
+	"github.com/traefik/traefik/v3/pkg/config/dynamic"
+	"github.com/traefik/traefik/v3/pkg/provider"
+	traefikcrdfake "github.com/traefik/traefik/v3/pkg/provider/kubernetes/crd/generated/clientset/versioned/fake"
+	traefikv1alpha1 "github.com/traefik/traefik/v3/pkg/provider/kubernetes/crd/traefikio/v1alpha1"
+	"github.com/traefik/traefik/v3/pkg/provider/kubernetes/gateway"
+	"github.com/traefik/traefik/v3/pkg/provider/kubernetes/k8s"
+	"github.com/traefik/traefik/v3/pkg/tls"
+	"github.com/traefik/traefik/v3/pkg/types"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	kscheme "k8s.io/client-go/kubernetes/scheme"
 )
 
 var _ provider.Provider = (*Provider)(nil)
 
-func Int(v int) *int    { return &v }
-func Bool(v bool) *bool { return &v }
+func pointer[T any](v T) *T { return &v }
+
+func init() {
+	// required by k8s.MustParseYaml
+	err := traefikv1alpha1.AddToScheme(kscheme.Scheme)
+	if err != nil {
+		panic(err)
+	}
+}
 
 func TestLoadIngressRouteTCPs(t *testing.T) {
 	testCases := []struct {
@@ -46,9 +55,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -96,6 +106,51 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "Simple Ingress Route, with foo entrypoint, tls encryption to service",
+			paths: []string{"tcp/services.yml", "tcp/with_tls_service.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.1:8000",
+										TLS:     true,
+									},
+									{
+										Address: "10.10.0.2:8000",
+										TLS:     true,
+									},
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -119,18 +174,18 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
 							Service:     "default-test.route-fdd3e9338e47a45efefc",
-							Middlewares: []string{"default-ipwhitelist", "foo-ipwhitelist"},
+							Middlewares: []string{"default-ipallowlist", "foo-ipallowlist"},
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{
-						"default-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"default-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
-						"foo-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"foo-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
@@ -149,6 +204,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -178,7 +234,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{
 						"default-multiple-hyphens": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
@@ -197,6 +253,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -220,18 +277,18 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
 							Service:     "default-test.route-fdd3e9338e47a45efefc",
-							Middlewares: []string{"default-ipwhitelist", "foo-ipwhitelist", "ipwhitelist@file", "ipwhitelist-foo@file"},
+							Middlewares: []string{"default-ipallowlist", "foo-ipallowlist", "ipallowlist@file", "ipallowlist-foo@file"},
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{
-						"default-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"default-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
-						"foo-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"foo-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
@@ -250,6 +307,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -302,6 +360,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -343,6 +402,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -376,11 +436,11 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								Services: []dynamic.TCPWRRService{
 									{
 										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp-8000",
-										Weight: func(i int) *int { return &i }(2),
+										Weight: pointer(2),
 									},
 									{
 										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp2-8080",
-										Weight: func(i int) *int { return &i }(3),
+										Weight: pointer(3),
 									},
 								},
 							},
@@ -410,6 +470,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -443,15 +504,15 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								Services: []dynamic.TCPWRRService{
 									{
 										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp-8000",
-										Weight: func(i int) *int { return &i }(2),
+										Weight: pointer(2),
 									},
 									{
 										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp2-8080",
-										Weight: func(i int) *int { return &i }(3),
+										Weight: pointer(3),
 									},
 									{
 										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp3-8083",
-										Weight: func(i int) *int { return &i }(4),
+										Weight: pointer(4),
 									},
 								},
 							},
@@ -493,6 +554,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -513,9 +575,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -535,9 +598,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -560,8 +624,8 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Certificates: []*tls.CertAndStores{
 						{
 							Certificate: tls.Certificate{
-								CertFile: tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-								KeyFile:  tls.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
+								CertFile: types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								KeyFile:  types.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
 							},
 						},
 					},
@@ -590,6 +654,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -633,6 +698,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -660,9 +726,9 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -701,6 +767,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -727,9 +794,9 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -768,6 +835,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -794,8 +862,8 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -834,6 +902,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -859,6 +928,21 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								"h2",
 								"http/1.1",
 								"acme-tls/1",
+							},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
 							},
 						},
 					},
@@ -889,6 +973,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -914,6 +999,21 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								"h2",
 								"http/1.1",
 								"acme-tls/1",
+							},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
 							},
 						},
 					},
@@ -944,6 +1044,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -985,6 +1086,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1016,6 +1118,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.TCPService{
 						"default-test.route-fdd3e9338e47a45efefc": {
 							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								TerminationDelay: pointer(500),
 								Servers: []dynamic.TCPServer{
 									{
 										Address: "10.10.0.1:8000",
@@ -1024,10 +1127,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 										Address: "10.10.0.2:8000",
 									},
 								},
-								TerminationDelay: Int(500),
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1045,8 +1148,8 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Stores: map[string]tls.Store{
 						"default": {
 							DefaultCertificate: &tls.Certificate{
-								CertFile: tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-								KeyFile:  tls.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
+								CertFile: types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								KeyFile:  types.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
 							},
 						},
 					},
@@ -1075,6 +1178,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				UDP: &dynamic.UDPConfiguration{
 					Routers:  map[string]*dynamic.UDPRouter{},
@@ -1116,6 +1220,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1154,6 +1259,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1173,6 +1279,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.TCPRouter{
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
@@ -1180,8 +1287,9 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1234,11 +1342,11 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								Services: []dynamic.TCPWRRService{
 									{
 										Name:   "default-test.route-673acf455cb2dab0b43a-whoamitcp-ipv6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-test.route-673acf455cb2dab0b43a-external.service.with.ipv6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1265,6 +1373,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1283,7 +1392,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 										URL: "http://[2001:db8:85a3:8d3:1319:8a2e:370:7348]:8080",
 									},
 								},
-								PassHostHeader: func(i bool) *bool { return &i }(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-external-svc-with-ipv6-8080": {
@@ -1293,7 +1405,10 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 										URL: "http://[2001:db8:85a3:8d3:1319:8a2e:370:7347]:8080",
 									},
 								},
-								PassHostHeader: func(i bool) *bool { return &i }(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-route-6b204d94623b3df4370c": {
@@ -1301,11 +1416,11 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami-ipv6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-external-svc-with-ipv6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1349,6 +1464,109 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+			},
+		},
+		{
+			desc:  "TCP with ServersTransport",
+			paths: []string{"tcp/services.yml", "tcp/with_servers_transport.yml"},
+			expected: &dynamic.Configuration{
+				TLS: &dynamic.TLSConfiguration{},
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{
+						"foo-test": {
+							TLS: &dynamic.TLSClientConfig{
+								ServerName:         "test",
+								InsecureSkipVerify: true,
+								RootCAs:            []types.FileOrContent{"TESTROOTCAS0", "TESTROOTCAS1", "TESTROOTCAS2", "TESTROOTCAS3", "TESTROOTCAS5", "TESTALLCERTS"},
+								Certificates: tls.Certificates{
+									{CertFile: "TESTCERT1", KeyFile: "TESTKEY1"},
+									{CertFile: "TESTCERT2", KeyFile: "TESTKEY2"},
+									{CertFile: "TESTCERT3", KeyFile: "TESTKEY3"},
+								},
+								PeerCertURI: "foo://bar",
+								Spiffe: &dynamic.Spiffe{
+									IDs: []string{
+										"spiffe://foo/buz",
+										"spiffe://bar/biz",
+									},
+									TrustDomain: "spiffe://lol",
+								},
+							},
+							DialTimeout:      ptypes.Duration(42 * time.Second),
+							DialKeepAlive:    ptypes.Duration(42 * time.Second),
+							TerminationDelay: ptypes.Duration(42 * time.Second),
+						},
+						"default-test": {
+							TLS: &dynamic.TLSClientConfig{
+								ServerName: "test",
+							},
+							DialTimeout:      ptypes.Duration(30 * time.Second),
+							DialKeepAlive:    ptypes.Duration(15 * time.Second),
+							TerminationDelay: ptypes.Duration(100 * time.Millisecond),
+						},
+					},
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-test.route-fdd3e9338e47a45efefc-whoamitcp-8000": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.1:8000",
+									},
+									{
+										Address: "10.10.0.2:8000",
+									},
+								},
+								ServersTransport: "default-test",
+							},
+						},
+						"default-test.route-fdd3e9338e47a45efefc-whoamitcp2-8080": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.3:8080",
+									},
+									{
+										Address: "10.10.0.4:8080",
+									},
+								},
+								ServersTransport: "default-default-test",
+							},
+						},
+						"default-test.route-fdd3e9338e47a45efefc": {
+							Weighted: &dynamic.TCPWeightedRoundRobin{
+								Services: []dynamic.TCPWRRService{
+									{
+										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp-8000",
+										Weight: pointer(1),
+									},
+									{
+										Name:   "default-test.route-fdd3e9338e47a45efefc-whoamitcp2-8080",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+					},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1367,6 +1585,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.TCPRouter{
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
@@ -1374,8 +1593,9 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1409,6 +1629,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 							LoadBalancer: &dynamic.TCPServersLoadBalancer{},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1422,13 +1643,28 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			if test.expected == nil {
 				return
+			}
+
+			k8sObjects, crdObjects := readResources(t, test.paths)
+
+			kubeClient := kubefake.NewClientset(k8sObjects...)
+			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+			client := newClientImpl(kubeClient, crdClient)
+
+			stopCh := make(chan struct{})
+
+			eventCh, err := client.WatchAll(nil, stopCh)
+			require.NoError(t, err)
+
+			if k8sObjects != nil || crdObjects != nil {
+				// just wait for the first event
+				<-eventCh
 			}
 
 			p := Provider{
@@ -1438,8 +1674,7 @@ func TestLoadIngressRouteTCPs(t *testing.T) {
 				AllowEmptyServices:        test.allowEmptyServices,
 			}
 
-			clientMock := newClientMock(test.paths...)
-			conf := p.loadConfigurationFromCRD(context.Background(), clientMock)
+			conf := p.loadConfigurationFromCRD(context.Background(), client)
 			assert.Equal(t, test.expected, conf)
 		})
 	}
@@ -1462,9 +1697,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -1484,9 +1720,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1495,6 +1732,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 							Service:     "default-test-route-6b204d94623b3df4370c",
 							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
 							Priority:    12,
+							Observability: &dynamic.RouterObservabilityConfig{
+								AccessLogs: pointer(true),
+								Tracing:    pointer(true),
+								Metrics:    pointer(true),
+							},
 						},
 					},
 					Middlewares: map[string]*dynamic.Middleware{},
@@ -1509,7 +1751,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1528,9 +1773,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1577,7 +1823,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1596,9 +1845,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1628,7 +1878,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1648,9 +1901,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1685,7 +1939,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1702,9 +1959,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1733,7 +1991,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-route-77c62dfe9517144aeeaa": {
@@ -1746,7 +2007,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1765,9 +2029,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1785,11 +2050,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoami2-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1804,7 +2069,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami2-8080": {
@@ -1817,7 +2085,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1835,9 +2106,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1855,7 +2127,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1870,7 +2142,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1888,9 +2163,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:     map[string]*dynamic.Router{},
@@ -1901,7 +2177,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1916,7 +2192,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -1934,9 +2213,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -1954,11 +2234,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-wrr1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-wrr2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1968,11 +2248,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami4-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -1987,7 +2267,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami5-8080": {
@@ -2000,7 +2283,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-wrr2": {
@@ -2008,11 +2294,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami6-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoami7-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2027,7 +2313,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.6:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami7-8080": {
@@ -2040,7 +2329,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.8:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2058,9 +2350,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2078,11 +2371,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-wrr2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2092,7 +2385,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2107,7 +2400,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2125,9 +2421,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2145,15 +2442,15 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-wrr2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-mirror1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2163,7 +2460,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2186,7 +2483,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami5-8080": {
@@ -2199,12 +2499,191 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
 					ServersTransports: map[string]*dynamic.ServersTransport{},
 				},
+			},
+		},
+		{
+			desc:  "with one external service and health check",
+			paths: []string{"services.yml", "with_one_external_service_and_health_check.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-77c62dfe9517144aeeaa": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-77c62dfe9517144aeeaa",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/foo`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-77c62dfe9517144aeeaa": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "https://external.domain:443",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+								HealthCheck: &dynamic.ServerHealthCheck{
+									Path:            "/health",
+									Timeout:         5000000000,
+									Interval:        15000000000,
+									FollowRedirects: pointer(true),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "with two external services and health check",
+			paths: []string{"services.yml", "with_two_external_services_and_health_check.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-77c62dfe9517144aeeaa": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-77c62dfe9517144aeeaa",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/foo`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-77c62dfe9517144aeeaa": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-external-svc-443",
+										Weight: func(i int) *int { return &i }(1),
+									},
+									{
+										Name:   "default-external-svc-with-https-443",
+										Weight: func(i int) *int { return &i }(1),
+									},
+								},
+							},
+						},
+						"default-external-svc-443": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "https://external.domain:443",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+								HealthCheck: &dynamic.ServerHealthCheck{
+									Path:            "/health1",
+									Timeout:         5000000000,
+									Interval:        15000000000,
+									FollowRedirects: pointer(true),
+								},
+							},
+						},
+						"default-external-svc-with-https-443": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "https://external.domain:443",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+								HealthCheck: &dynamic.ServerHealthCheck{
+									Path:            "/health2",
+									Timeout:         5000000000,
+									Interval:        20000000000,
+									FollowRedirects: pointer(true),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "with one external service and one regular service and health check",
+			paths: []string{"services.yml", "with_one_external_svc_and_regular_svc_health_check.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers:     map[string]*dynamic.Router{},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-external-svc-443": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "https://external.domain:443",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+								HealthCheck: &dynamic.ServerHealthCheck{
+									Path:            "/health1",
+									Timeout:         5000000000,
+									Interval:        15000000000,
+									FollowRedirects: pointer(true),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
 			},
 		},
 		{
@@ -2218,9 +2697,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2238,23 +2718,23 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "baz-whoami6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "foo-wrr1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "foo-mirror2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "foo-mirror3",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "foo-mirror4",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2269,7 +2749,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.6:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"foo-wrr1": {
@@ -2277,19 +2760,19 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "foo-whoami4-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "baz-whoami6-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "foo-mirror1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "bar-wrr2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2304,7 +2787,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"foo-mirror1": {
@@ -2327,7 +2813,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"bar-mirrored": {
@@ -2365,7 +2854,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "foo-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2396,9 +2885,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2429,7 +2919,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami5-8080": {
@@ -2442,7 +2935,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2460,9 +2956,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2488,7 +2985,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami4-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2498,7 +2995,7 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami5-8080",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -2513,7 +3010,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami5-8080": {
@@ -2526,7 +3026,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2544,9 +3047,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2564,11 +3068,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-whoami-80",
-										Weight: Int(10),
+										Weight: pointer(10),
 									},
 									{
 										Name:   "default-whoami2-8080",
-										Weight: Int(0),
+										Weight: pointer(0),
 									},
 								},
 							},
@@ -2583,7 +3087,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-whoami2-8080": {
@@ -2596,7 +3103,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.4:8080",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2615,9 +3125,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -2637,9 +3148,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -2650,8 +3162,8 @@ func TestLoadIngressRoutes(t *testing.T) {
 			},
 		},
 		{
-			desc:  "Route with kind not of a rule type (empty kind) is ignored",
-			paths: []string{"services.yml", "with_wrong_rule_kind.yml"},
+			desc:  "Route with empty kind is allowed",
+			paths: []string{"services.yml", "with_empty_rule_kind.yml"},
 			expected: &dynamic.Configuration{
 				UDP: &dynamic.UDPConfiguration{
 					Routers:  map[string]*dynamic.UDPRouter{},
@@ -2659,14 +3171,39 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
-					Routers:           map[string]*dynamic.Router{},
-					Middlewares:       map[string]*dynamic.Middleware{},
-					Services:          map[string]*dynamic.Service{},
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-02719a68b11e915a4b23": {
+							EntryPoints: []string{"web"},
+							Service:     "default-test-route-02719a68b11e915a4b23",
+							Rule:        "/prefix",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-02719a68b11e915a4b23": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+									{
+										URL: "http://10.10.0.2:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+					},
 					ServersTransports: map[string]*dynamic.ServersTransport{},
 				},
 			},
@@ -2683,16 +3220,17 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Certificates: []*tls.CertAndStores{
 						{
 							Certificate: tls.Certificate{
-								CertFile: tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-								KeyFile:  tls.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
+								CertFile: types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								KeyFile:  types.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
 							},
 						},
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2716,7 +3254,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2741,9 +3282,9 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -2757,9 +3298,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2785,7 +3327,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2805,15 +3350,25 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Options: map[string]tls.Options{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-test-route-6b204d94623b3df4370c": {
 							EntryPoints: []string{"web"},
 							Service:     "default-test-route-6b204d94623b3df4370c",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+							Priority:    12,
+							TLS: &dynamic.RouterTLSConfig{
+								Options: "default-foo",
+							},
+						},
+						"default-test-route-default-6b204d94623b3df4370c": {
+							EntryPoints: []string{"web"},
+							Service:     "default-test-route-default-6b204d94623b3df4370c",
 							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
 							Priority:    12,
 							TLS: &dynamic.RouterTLSConfig{
@@ -2833,7 +3388,26 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+						"default-test-route-default-6b204d94623b3df4370c": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+									{
+										URL: "http://10.10.0.2:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2854,9 +3428,9 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -2874,9 +3448,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2902,7 +3477,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2928,9 +3506,9 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -2944,9 +3522,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -2972,7 +3551,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -2997,8 +3579,8 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"TLS_RSA_WITH_AES_256_GCM_SHA384",
 							},
 							ClientAuth: tls.ClientAuth{
-								CAFiles: []tls.FileOrContent{
-									tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								CAFiles: []types.FileOrContent{
+									types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
 								},
 								ClientAuthType: "VerifyClientCertIfGiven",
 							},
@@ -3012,9 +3594,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3040,7 +3623,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3065,13 +3651,29 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"http/1.1",
 								"acme-tls/1",
 							},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3097,7 +3699,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3123,13 +3728,29 @@ func TestLoadIngressRoutes(t *testing.T) {
 								"http/1.1",
 								"acme-tls/1",
 							},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3155,7 +3776,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3173,9 +3797,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3199,7 +3824,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3217,9 +3845,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3242,7 +3871,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "https://10.10.0.6:8443",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3260,9 +3892,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3285,7 +3918,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "https://10.10.0.8:8443",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3303,9 +3939,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3322,8 +3959,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 						},
 						"default-forwardauth": {
 							ForwardAuth: &dynamic.ForwardAuth{
-								Address: "test.com",
-								TLS: &types.ClientTLS{
+								Address:     "test.com",
+								MaxBodySize: pointer(int64(-1)),
+								HeaderField: "X-Header-Field",
+								TLS: &dynamic.ClientTLS{
 									CA:   "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----",
 									Cert: "-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----",
 									Key:  "-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----",
@@ -3346,9 +3985,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3377,9 +4017,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3414,9 +4055,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3444,9 +4086,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3484,9 +4127,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -3506,9 +4150,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 				},
 				TLS: &dynamic.TLSConfiguration{},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{},
@@ -3532,7 +4177,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3549,9 +4197,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3574,8 +4223,8 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader:     Bool(false),
-								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: "10s"},
+								PassHostHeader:     pointer(false),
+								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: ptypes.Duration(10 * time.Second)},
 							},
 						},
 					},
@@ -3592,8 +4241,8 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Stores: map[string]tls.Store{
 						"default": {
 							DefaultCertificate: &tls.Certificate{
-								CertFile: tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-								KeyFile:  tls.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
+								CertFile: types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								KeyFile:  types.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
 							},
 						},
 					},
@@ -3603,9 +4252,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3629,7 +4279,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3645,8 +4298,8 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Certificates: []*tls.CertAndStores{
 						{
 							Certificate: tls.Certificate{
-								CertFile: tls.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
-								KeyFile:  tls.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
+								CertFile: types.FileOrContent("-----BEGIN CERTIFICATE-----\n-----END CERTIFICATE-----"),
+								KeyFile:  types.FileOrContent("-----BEGIN PRIVATE KEY-----\n-----END PRIVATE KEY-----"),
 							},
 							Stores: []string{"default"},
 						},
@@ -3660,9 +4313,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3686,7 +4340,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3706,15 +4363,23 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
 						"default-test-route-6b204d94623b3df4370c": {
 							EntryPoints: []string{"web"},
 							Service:     "default-test-route-6b204d94623b3df4370c",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+							Priority:    12,
+							TLS:         &dynamic.RouterTLSConfig{},
+						},
+						"default-test-route-default-6b204d94623b3df4370c": {
+							EntryPoints: []string{"web"},
+							Service:     "default-test-route-default-6b204d94623b3df4370c",
 							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
 							Priority:    12,
 							TLS:         &dynamic.RouterTLSConfig{},
@@ -3732,7 +4397,26 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+						"default-test-route-default-6b204d94623b3df4370c": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+									{
+										URL: "http://10.10.0.2:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3752,9 +4436,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3773,7 +4458,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://external.domain:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3791,9 +4479,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3812,7 +4501,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "http://external.domain:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3830,9 +4522,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -3851,7 +4544,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "https://external.domain:443",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -3869,9 +4565,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -3891,16 +4588,17 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{
 						"foo-test": {
 							ServerName:         "test",
 							InsecureSkipVerify: true,
-							RootCAs:            []tls.FileOrContent{"TESTROOTCAS0", "TESTROOTCAS1", "TESTROOTCAS2", "TESTROOTCAS3", "TESTROOTCAS5", "TESTALLCERTS"},
+							RootCAs:            []types.FileOrContent{"TESTROOTCAS0", "TESTROOTCAS1", "TESTROOTCAS2", "TESTROOTCAS3", "TESTROOTCAS5", "TESTALLCERTS"},
 							Certificates: tls.Certificates{
 								{CertFile: "TESTCERT1", KeyFile: "TESTKEY1"},
 								{CertFile: "TESTCERT2", KeyFile: "TESTKEY2"},
@@ -3916,6 +4614,13 @@ func TestLoadIngressRoutes(t *testing.T) {
 								PingTimeout:           ptypes.Duration(42 * time.Second),
 							},
 							PeerCertURI: "foo://bar",
+							Spiffe: &dynamic.Spiffe{
+								IDs: []string{
+									"spiffe://foo/buz",
+									"spiffe://bar/biz",
+								},
+								TrustDomain: "spiffe://lol",
+							},
 						},
 						"default-test": {
 							ServerName: "test",
@@ -3942,7 +4647,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "https://external.domain:443",
 									},
 								},
-								PassHostHeader:   Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 								ServersTransport: "default-test",
 							},
 						},
@@ -3956,7 +4664,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 										URL: "https://10.10.0.6:8443",
 									},
 								},
-								PassHostHeader:   Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 								ServersTransport: "default-default-test",
 							},
 						},
@@ -3965,11 +4676,11 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-external-svc-with-https-443",
-										Weight: Int(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-whoamitls-443",
-										Weight: Int(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -3988,9 +4699,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4011,9 +4723,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -4028,7 +4741,120 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.Service{
 						"default-test-route-6b204d94623b3df4370c": {
 							LoadBalancer: &dynamic.ServersLoadBalancer{
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:               "IngressRoute, service with multiple endpoint addresses on endpointslice",
+			allowEmptyServices: true,
+			paths:              []string{"services.yml", "with_multiple_endpointaddresses.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-6b204d94623b3df4370c": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-6b204d94623b3df4370c",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-6b204d94623b3df4370c": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+									{
+										URL: "http://10.10.0.2:80",
+									},
+									{
+										URL:    "http://10.10.0.3:80",
+										Fenced: true,
+									},
+									{
+										URL:    "http://10.10.0.4:80",
+										Fenced: true,
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:               "IngressRoute, service with duplicated endpointaddresses",
+			allowEmptyServices: true,
+			paths:              []string{"services.yml", "with_duplicated_endpointaddresses.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-6b204d94623b3df4370c": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-6b204d94623b3df4370c",
+							Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-6b204d94623b3df4370c": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:8080",
+									},
+									{
+										URL: "http://10.10.0.2:8080",
+									},
+									{
+										URL: "http://10.10.0.3:8080",
+									},
+									{
+										URL: "http://10.10.0.4:8080",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -4047,9 +4873,10 @@ func TestLoadIngressRoutes(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -4074,36 +4901,39 @@ func TestLoadIngressRoutes(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "default-test-weighted",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-test-mirror",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
 						},
 						"default-test-errorpage-errorpage-service": {
 							LoadBalancer: &dynamic.ServersLoadBalancer{
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-weighted": {
 							Weighted: &dynamic.WeightedRoundRobin{
 								Services: []dynamic.WRRService{
 									{
-										Name:   "default-whoami-without-endpoints-subsets-80",
-										Weight: func(i int) *int { return &i }(1),
+										Name:   "default-whoami-without-endpointslice-endpoints-80",
+										Weight: pointer(1),
 									},
 								},
 							},
 						},
 						"default-test-mirror": {
 							Mirroring: &dynamic.Mirroring{
-								Service: "default-whoami-without-endpoints-subsets-80",
+								Service: "default-whoami-without-endpointslice-endpoints-80",
 								Mirrors: []dynamic.MirrorService{
 									{
-										Name: "default-whoami-without-endpoints-subsets-80",
+										Name: "default-whoami-without-endpointslice-endpoints-80",
 									},
 									{
 										Name: "default-test-weighted",
@@ -4111,9 +4941,184 @@ func TestLoadIngressRoutes(t *testing.T) {
 								},
 							},
 						},
-						"default-whoami-without-endpoints-subsets-80": {
+						"default-whoami-without-endpointslice-endpoints-80": {
 							LoadBalancer: &dynamic.ServersLoadBalancer{
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:                "Simple Ingress Route with sticky",
+			allowCrossNamespace: true,
+			paths:               []string{"services.yml", "with_sticky.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers: map[string]*dynamic.Router{
+						"default-test2-route-840425136fbd5d85a4ad": {
+							EntryPoints: []string{"web"},
+							Service:     "default-test2-route-840425136fbd5d85a4ad",
+							Rule:        "Host(`k8s-service`)",
+						},
+						"default-test2-route-4f06607bbc69f34a4db5": {
+							EntryPoints: []string{"web"},
+							Service:     "default-test2-route-4f06607bbc69f34a4db5",
+							Rule:        "Host(`traefik-service`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test2-route-840425136fbd5d85a4ad": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-whoami-80",
+										Weight: pointer(1),
+									},
+									{
+										Name:   "default-whoami2-8080",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+						"default-test2-route-4f06607bbc69f34a4db5": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-sticky",
+										Weight: pointer(1),
+									},
+									{
+										Name:   "default-sticky-default",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+						"default-sticky": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Sticky: &dynamic.Sticky{
+									Cookie: &dynamic.Cookie{
+										Name:     "cookie",
+										Secure:   true,
+										HTTPOnly: true,
+										SameSite: "none",
+										MaxAge:   42,
+										Path:     pointer("/foo"),
+									},
+								},
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-whoami3-8443",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+						"default-sticky-default": {
+							Weighted: &dynamic.WeightedRoundRobin{
+								Sticky: &dynamic.Sticky{
+									Cookie: &dynamic.Cookie{
+										Name:     "cookie",
+										Secure:   true,
+										HTTPOnly: true,
+										SameSite: "none",
+										MaxAge:   42,
+										Path:     pointer("/"),
+									},
+								},
+								Services: []dynamic.WRRService{
+									{
+										Name:   "default-whoami3-8443",
+										Weight: pointer(1),
+									},
+								},
+							},
+						},
+						"default-whoami2-8080": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Sticky: &dynamic.Sticky{
+									Cookie: &dynamic.Cookie{
+										Name:     "cookie",
+										Secure:   true,
+										HTTPOnly: true,
+										SameSite: "none",
+										MaxAge:   42,
+										Path:     pointer("/"),
+									},
+								},
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.3:8080",
+									},
+									{
+										URL: "http://10.10.0.4:8080",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+						"default-whoami-80": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Sticky: &dynamic.Sticky{
+									Cookie: &dynamic.Cookie{
+										Name:     "cookie",
+										Secure:   true,
+										HTTPOnly: true,
+										SameSite: "none",
+										MaxAge:   42,
+										Path:     pointer("/foo"),
+									},
+								},
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+									{
+										URL: "http://10.10.0.2:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
+							},
+						},
+						"default-whoami3-8443": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.7:8443",
+									},
+									{
+										URL: "http://10.10.0.8:8443",
+									},
+								},
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -4125,12 +5130,28 @@ func TestLoadIngressRoutes(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			if test.expected == nil {
 				return
+			}
+
+			k8sObjects, crdObjects := readResources(t, test.paths)
+
+			kubeClient := kubefake.NewClientset(k8sObjects...)
+			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+			client := newClientImpl(kubeClient, crdClient)
+
+			stopCh := make(chan struct{})
+
+			eventCh, err := client.WatchAll(nil, stopCh)
+			require.NoError(t, err)
+
+			if k8sObjects != nil || crdObjects != nil {
+				// just wait for the first event
+				<-eventCh
 			}
 
 			p := Provider{
@@ -4140,11 +5161,91 @@ func TestLoadIngressRoutes(t *testing.T) {
 				AllowEmptyServices:        test.allowEmptyServices,
 			}
 
-			clientMock := newClientMock(test.paths...)
-			conf := p.loadConfigurationFromCRD(context.Background(), clientMock)
+			conf := p.loadConfigurationFromCRD(context.Background(), client)
 			assert.Equal(t, test.expected, conf)
 		})
 	}
+}
+
+func TestLoadIngressRoutes_multipleEndpointAddresses(t *testing.T) {
+	wantConf := &dynamic.Configuration{
+		UDP: &dynamic.UDPConfiguration{
+			Routers:  map[string]*dynamic.UDPRouter{},
+			Services: map[string]*dynamic.UDPService{},
+		},
+		TCP: &dynamic.TCPConfiguration{
+			Routers:           map[string]*dynamic.TCPRouter{},
+			Middlewares:       map[string]*dynamic.TCPMiddleware{},
+			Services:          map[string]*dynamic.TCPService{},
+			ServersTransports: map[string]*dynamic.TCPServersTransport{},
+		},
+		HTTP: &dynamic.HTTPConfiguration{
+			Routers: map[string]*dynamic.Router{
+				"default-test-route-6b204d94623b3df4370c": {
+					EntryPoints: []string{"foo"},
+					Service:     "default-test-route-6b204d94623b3df4370c",
+					Rule:        "Host(`foo.com`) && PathPrefix(`/bar`)",
+					Priority:    12,
+				},
+			},
+			Middlewares: map[string]*dynamic.Middleware{},
+			Services: map[string]*dynamic.Service{
+				"default-test-route-6b204d94623b3df4370c": {
+					LoadBalancer: &dynamic.ServersLoadBalancer{
+						PassHostHeader: pointer(true),
+						ResponseForwarding: &dynamic.ResponseForwarding{
+							FlushInterval: ptypes.Duration(100 * time.Millisecond),
+						},
+					},
+				},
+			},
+			ServersTransports: map[string]*dynamic.ServersTransport{},
+		},
+		TLS: &dynamic.TLSConfiguration{},
+	}
+	wantServers := []dynamic.Server{
+		{
+			URL: "http://10.10.0.3:8080",
+		},
+		{
+			URL: "http://10.10.0.4:8080",
+		},
+		{
+			URL: "http://10.10.0.5:8080",
+		},
+		{
+			URL: "http://10.10.0.6:8080",
+		},
+	}
+
+	k8sObjects, crdObjects := readResources(t, []string{"services.yml", "with_multiple_endpointslices.yml"})
+
+	kubeClient := kubefake.NewClientset(k8sObjects...)
+	crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+	client := newClientImpl(kubeClient, crdClient)
+
+	stopCh := make(chan struct{})
+
+	eventCh, err := client.WatchAll(nil, stopCh)
+	require.NoError(t, err)
+
+	if k8sObjects != nil || crdObjects != nil {
+		// just wait for the first event
+		<-eventCh
+	}
+
+	p := Provider{}
+	conf := p.loadConfigurationFromCRD(context.Background(), client)
+
+	service, ok := conf.HTTP.Services["default-test-route-6b204d94623b3df4370c"]
+	require.True(t, ok)
+	require.NotNil(t, service)
+	require.NotNil(t, service.LoadBalancer)
+	assert.ElementsMatch(t, wantServers, service.LoadBalancer.Servers)
+
+	service.LoadBalancer.Servers = nil
+	assert.Equal(t, wantConf, conf)
 }
 
 func TestLoadIngressRouteUDPs(t *testing.T) {
@@ -4163,9 +5264,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4209,9 +5311,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					ServersTransports: map[string]*dynamic.ServersTransport{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -4259,9 +5362,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4289,11 +5393,11 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 								Services: []dynamic.UDPWRRService{
 									{
 										Name:   "default-test.route-0-whoamiudp-8000",
-										Weight: func(i int) *int { return &i }(2),
+										Weight: pointer(2),
 									},
 									{
 										Name:   "default-test.route-0-whoamiudp2-8080",
-										Weight: func(i int) *int { return &i }(3),
+										Weight: pointer(3),
 									},
 								},
 							},
@@ -4325,9 +5429,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4355,15 +5460,15 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 								Services: []dynamic.UDPWRRService{
 									{
 										Name:   "default-test.route-0-whoamiudp-8000",
-										Weight: func(i int) *int { return &i }(2),
+										Weight: pointer(2),
 									},
 									{
 										Name:   "default-test.route-0-whoamiudp2-8080",
-										Weight: func(i int) *int { return &i }(3),
+										Weight: pointer(3),
 									},
 									{
 										Name:   "default-test.route-0-whoamiudp3-8083",
-										Weight: func(i int) *int { return &i }(4),
+										Weight: pointer(4),
 									},
 								},
 							},
@@ -4407,9 +5512,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4444,9 +5550,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4481,9 +5588,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4499,6 +5607,7 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 			paths: []string{"udp/services.yml", "udp/with_externalname_without_ports.yml"},
 			expected: &dynamic.Configuration{
 				UDP: &dynamic.UDPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.UDPRouter{
 						"default-test.route-0": {
 							EntryPoints: []string{"foo"},
@@ -4508,9 +5617,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4531,9 +5641,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4549,6 +5660,7 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 			paths: []string{"udp/services.yml", "udp/with_empty_services.yml"},
 			expected: &dynamic.Configuration{
 				UDP: &dynamic.UDPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.UDPRouter{
 						"default-test.route-0": {
 							EntryPoints: []string{"foo"},
@@ -4558,9 +5670,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4590,9 +5703,10 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 					},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -4606,13 +5720,28 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			if test.expected == nil {
 				return
+			}
+
+			k8sObjects, crdObjects := readResources(t, test.paths)
+
+			kubeClient := kubefake.NewClientset(k8sObjects...)
+			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+			client := newClientImpl(kubeClient, crdClient)
+
+			stopCh := make(chan struct{})
+
+			eventCh, err := client.WatchAll(nil, stopCh)
+			require.NoError(t, err)
+
+			if k8sObjects != nil || crdObjects != nil {
+				// just wait for the first event
+				<-eventCh
 			}
 
 			p := Provider{
@@ -4622,8 +5751,7 @@ func TestLoadIngressRouteUDPs(t *testing.T) {
 				AllowEmptyServices:        test.allowEmptyServices,
 			}
 
-			clientMock := newClientMock(test.paths...)
-			conf := p.loadConfigurationFromCRD(context.Background(), clientMock)
+			conf := p.loadConfigurationFromCRD(context.Background(), client)
 			assert.Equal(t, test.expected, conf)
 		})
 	}
@@ -4683,8 +5811,6 @@ func TestParseServiceProtocol(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -4915,7 +6041,6 @@ func TestGetServicePort(t *testing.T) {
 		},
 	}
 	for _, test := range testCases {
-		test := test
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -4945,9 +6070,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -4967,9 +6093,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -4984,8 +6111,7 @@ func TestCrossNamespace(t *testing.T) {
 					Middlewares: map[string]*dynamic.Middleware{
 						"cross-ns-stripprefix": {
 							StripPrefix: &dynamic.StripPrefix{
-								Prefixes:   []string{"/stripit"},
-								ForceSlash: false,
+								Prefixes: []string{"/stripit"},
 							},
 						},
 					},
@@ -5000,7 +6126,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5019,9 +6148,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -5052,8 +6182,7 @@ func TestCrossNamespace(t *testing.T) {
 					Middlewares: map[string]*dynamic.Middleware{
 						"cross-ns-stripprefix": {
 							StripPrefix: &dynamic.StripPrefix{
-								Prefixes:   []string{"/stripit"},
-								ForceSlash: false,
+								Prefixes: []string{"/stripit"},
 							},
 						},
 						"default-test-errorpage": {
@@ -5075,7 +6204,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-crossnamespace-route-9313b71dbe6a649d5049": {
@@ -5088,7 +6220,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-errorpage-errorpage-service": {
@@ -5101,7 +6236,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-test-crossnamespace-route-a1963878aac7331b7950": {
@@ -5114,7 +6252,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5133,9 +6274,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -5158,23 +6300,23 @@ func TestCrossNamespace(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "cross-ns-whoami-svc-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-tr-svc-wrr1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "cross-ns-tr-svc-wrr2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "default-tr-svc-mirror1",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 									{
 										Name:   "cross-ns-tr-svc-mirror2",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -5189,7 +6331,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader:   Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 								ServersTransport: "foo-test@kubernetescrd",
 							},
 						},
@@ -5203,7 +6348,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"default-tr-svc-wrr1": {
@@ -5211,7 +6359,7 @@ func TestCrossNamespace(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "cross-ns-whoami-svc-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -5221,7 +6369,7 @@ func TestCrossNamespace(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "cross-ns-whoami-svc-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -5258,7 +6406,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5276,9 +6427,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:     map[string]*dynamic.Router{},
@@ -5289,7 +6441,7 @@ func TestCrossNamespace(t *testing.T) {
 								Services: []dynamic.WRRService{
 									{
 										Name:   "cross-ns-whoami-svc-80",
-										Weight: func(i int) *int { return &i }(1),
+										Weight: pointer(1),
 									},
 								},
 							},
@@ -5304,7 +6456,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 						"cross-ns-tr-svc-mirror2": {
@@ -5328,7 +6483,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5347,9 +6505,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -5372,7 +6531,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader:   Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 								ServersTransport: "cross-ns-st-cross-ns@kubernetescrd",
 							},
 						},
@@ -5402,9 +6564,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:     map[string]*dynamic.Router{},
@@ -5436,9 +6599,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers: map[string]*dynamic.Router{
@@ -5464,7 +6628,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5475,6 +6642,21 @@ func TestCrossNamespace(t *testing.T) {
 						"cross-ns-tls-options-cn": {
 							MinVersion:    "VersionTLS12",
 							ALPNProtocols: []string{"h2", "http/1.1", "acme-tls/1"},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
@@ -5490,9 +6672,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:     map[string]*dynamic.Router{},
@@ -5508,7 +6691,10 @@ func TestCrossNamespace(t *testing.T) {
 										URL: "http://10.10.0.2:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -5519,6 +6705,21 @@ func TestCrossNamespace(t *testing.T) {
 						"cross-ns-tls-options-cn": {
 							MinVersion:    "VersionTLS12",
 							ALPNProtocols: []string{"h2", "http/1.1", "acme-tls/1"},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
@@ -5537,18 +6738,18 @@ func TestCrossNamespace(t *testing.T) {
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
 							Service:     "default-test.route-fdd3e9338e47a45efefc",
-							Middlewares: []string{"default-ipwhitelist"},
+							Middlewares: []string{"default-ipallowlist"},
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{
-						"default-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"default-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
-						"cross-ns-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"cross-ns-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
@@ -5567,6 +6768,7 @@ func TestCrossNamespace(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -5591,24 +6793,24 @@ func TestCrossNamespace(t *testing.T) {
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
 							Service:     "default-test.route-fdd3e9338e47a45efefc",
-							Middlewares: []string{"default-ipwhitelist"},
+							Middlewares: []string{"default-ipallowlist"},
 							Rule:        "HostSNI(`foo.com`)",
 						},
 						"default-test.route-f44ce589164e656d231c": {
 							EntryPoints: []string{"foo"},
 							Service:     "default-test.route-f44ce589164e656d231c",
-							Middlewares: []string{"cross-ns-ipwhitelist"},
+							Middlewares: []string{"cross-ns-ipallowlist"},
 							Rule:        "HostSNI(`bar.com`)",
 						},
 					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{
-						"default-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"default-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
-						"cross-ns-ipwhitelist": {
-							IPWhiteList: &dynamic.TCPIPWhiteList{
+						"cross-ns-ipallowlist": {
+							IPAllowList: &dynamic.TCPIPAllowList{
 								SourceRange: []string{"127.0.0.1/32"},
 							},
 						},
@@ -5639,6 +6841,7 @@ func TestCrossNamespace(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -5687,6 +6890,7 @@ func TestCrossNamespace(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -5708,8 +6912,97 @@ func TestCrossNamespace(t *testing.T) {
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:                "TCP ServersTransport cross namespace allowed",
+			paths:               []string{"tcp/services.yml", "tcp/with_servers_transport_cross_namespace.yml"},
+			allowCrossNamespace: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+							Priority:    12,
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.1:8000",
+									},
+									{
+										Address: "10.10.0.2:8000",
+									},
+								},
+								ServersTransport: "cross-ns-st-cross-ns@kubernetescrd",
+							},
+						},
+					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{
+						"cross-ns-st-cross-ns": {
+							DialTimeout:      ptypes.Duration(30 * time.Second),
+							DialKeepAlive:    0,
+							TerminationDelay: ptypes.Duration(100 * time.Millisecond),
+						},
+					},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "TCP ServersTransport cross namespace disallowed",
+			paths: []string{"tcp/services.yml", "tcp/with_servers_transport_cross_namespace.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					// The router that references the invalid service will be discarded.
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+							Priority:    12,
+						},
+					},
 					Middlewares: map[string]*dynamic.TCPMiddleware{},
 					Services:    map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{
+						"cross-ns-st-cross-ns": {
+							DialTimeout:      30000000000,
+							DialKeepAlive:    0,
+							TerminationDelay: ptypes.Duration(100 * time.Millisecond),
+						},
+					},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -5761,12 +7054,28 @@ func TestCrossNamespace(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{
 					Options: map[string]tls.Options{
 						"cross-ns-tls-options-cn": {
 							MinVersion:    "VersionTLS12",
 							ALPNProtocols: []string{"h2", "http/1.1", "acme-tls/1"},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
@@ -5804,12 +7113,28 @@ func TestCrossNamespace(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{
 					Options: map[string]tls.Options{
 						"cross-ns-tls-options-cn": {
 							MinVersion:    "VersionTLS12",
 							ALPNProtocols: []string{"h2", "http/1.1", "acme-tls/1"},
+							CipherSuites: []string{
+								"TLS_AES_128_GCM_SHA256",
+								"TLS_AES_256_GCM_SHA384",
+								"TLS_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+								"TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+								"TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+								"TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+								"TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+								"TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+							},
 						},
 					},
 				},
@@ -5849,9 +7174,10 @@ func TestCrossNamespace(t *testing.T) {
 					ServersTransports: map[string]*dynamic.ServersTransport{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -5860,8 +7186,8 @@ func TestCrossNamespace(t *testing.T) {
 			desc:  "UDP cross namespace disallowed",
 			paths: []string{"udp/services.yml", "udp/with_cross_namespace.yml"},
 			expected: &dynamic.Configuration{
-				// The router that references the invalid service will be discarded.
 				UDP: &dynamic.UDPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.UDPRouter{
 						"default-test.route-0": {
 							EntryPoints: []string{"foo"},
@@ -5871,9 +7197,10 @@ func TestCrossNamespace(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					Routers:           map[string]*dynamic.Router{},
@@ -5887,48 +7214,12 @@ func TestCrossNamespace(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			var k8sObjects []runtime.Object
-			var crdObjects []runtime.Object
-			for _, path := range test.paths {
-				yamlContent, err := os.ReadFile(filepath.FromSlash("./fixtures/" + path))
-				if err != nil {
-					panic(err)
-				}
+			k8sObjects, crdObjects := readResources(t, test.paths)
 
-				objects := k8s.MustParseYaml(yamlContent)
-				for _, obj := range objects {
-					switch o := obj.(type) {
-					case *corev1.Service, *corev1.Endpoints, *corev1.Secret:
-						k8sObjects = append(k8sObjects, o)
-					case *traefikv1alpha1.IngressRoute:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.IngressRouteTCP:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.IngressRouteUDP:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.Middleware:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.MiddlewareTCP:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TraefikService:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TLSOption:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TLSStore:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.ServersTransport:
-						crdObjects = append(crdObjects, o)
-					default:
-					}
-				}
-			}
-
-			kubeClient := kubefake.NewSimpleClientset(k8sObjects...)
+			kubeClient := kubefake.NewClientset(k8sObjects...)
 			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
 
 			client := newClientImpl(kubeClient, crdClient)
@@ -5967,9 +7258,10 @@ func TestExternalNameService(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -5990,9 +7282,10 @@ func TestExternalNameService(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6013,7 +7306,10 @@ func TestExternalNameService(t *testing.T) {
 										URL: "http://external.domain:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
+								ResponseForwarding: &dynamic.ResponseForwarding{
+									FlushInterval: ptypes.Duration(100 * time.Millisecond),
+								},
 							},
 						},
 					},
@@ -6030,9 +7326,10 @@ func TestExternalNameService(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6079,6 +7376,7 @@ func TestExternalNameService(t *testing.T) {
 							},
 						},
 					},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -6100,8 +7398,9 @@ func TestExternalNameService(t *testing.T) {
 							Rule:        "HostSNI(`foo.com`)",
 						},
 					},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6144,9 +7443,10 @@ func TestExternalNameService(t *testing.T) {
 					Services:          map[string]*dynamic.Service{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -6155,8 +7455,8 @@ func TestExternalNameService(t *testing.T) {
 			desc:  "UDP ExternalName service disallowed",
 			paths: []string{"udp/services.yml", "udp/with_externalname_service.yml"},
 			expected: &dynamic.Configuration{
-				// The router that references the invalid service will be discarded.
 				UDP: &dynamic.UDPConfiguration{
+					// The router that references the invalid service will be discarded.
 					Routers: map[string]*dynamic.UDPRouter{
 						"default-test.route-0": {
 							EntryPoints: []string{"foo"},
@@ -6166,9 +7466,10 @@ func TestExternalNameService(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6182,44 +7483,12 @@ func TestExternalNameService(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
-
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
-			var k8sObjects []runtime.Object
-			var crdObjects []runtime.Object
-			for _, path := range test.paths {
-				yamlContent, err := os.ReadFile(filepath.FromSlash("./fixtures/" + path))
-				if err != nil {
-					panic(err)
-				}
+			k8sObjects, crdObjects := readResources(t, test.paths)
 
-				objects := k8s.MustParseYaml(yamlContent)
-				for _, obj := range objects {
-					switch o := obj.(type) {
-					case *corev1.Service, *corev1.Endpoints, *corev1.Secret:
-						k8sObjects = append(k8sObjects, o)
-					case *traefikv1alpha1.IngressRoute:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.IngressRouteTCP:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.IngressRouteUDP:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.Middleware:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TraefikService:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TLSOption:
-						crdObjects = append(crdObjects, o)
-					case *traefikv1alpha1.TLSStore:
-						crdObjects = append(crdObjects, o)
-					default:
-					}
-				}
-			}
-
-			kubeClient := kubefake.NewSimpleClientset(k8sObjects...)
+			kubeClient := kubefake.NewClientset(k8sObjects...)
 			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
 
 			client := newClientImpl(kubeClient, crdClient)
@@ -6257,9 +7526,10 @@ func TestNativeLB(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6279,9 +7549,10 @@ func TestNativeLB(t *testing.T) {
 					Services: map[string]*dynamic.UDPService{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
 				},
 				HTTP: &dynamic.HTTPConfiguration{
 					ServersTransports: map[string]*dynamic.ServersTransport{},
@@ -6297,12 +7568,13 @@ func TestNativeLB(t *testing.T) {
 					Services: map[string]*dynamic.Service{
 						"default-test-route-6f97418635c7e18853da": {
 							LoadBalancer: &dynamic.ServersLoadBalancer{
+								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: dynamic.DefaultFlushInterval},
 								Servers: []dynamic.Server{
 									{
 										URL: "http://10.10.0.1:80",
 									},
 								},
-								PassHostHeader: Bool(true),
+								PassHostHeader: pointer(true),
 							},
 						},
 					},
@@ -6325,6 +7597,7 @@ func TestNativeLB(t *testing.T) {
 					Services:          map[string]*dynamic.Service{},
 				},
 				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
 					Routers: map[string]*dynamic.TCPRouter{
 						"default-test.route-fdd3e9338e47a45efefc": {
 							EntryPoints: []string{"foo"},
@@ -6380,9 +7653,10 @@ func TestNativeLB(t *testing.T) {
 					Services:          map[string]*dynamic.Service{},
 				},
 				TCP: &dynamic.TCPConfiguration{
-					Routers:     map[string]*dynamic.TCPRouter{},
-					Middlewares: map[string]*dynamic.TCPMiddleware{},
-					Services:    map[string]*dynamic.TCPService{},
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
 				},
 				TLS: &dynamic.TLSConfiguration{},
 			},
@@ -6390,8 +7664,753 @@ func TestNativeLB(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
 
+			k8sObjects, crdObjects := readResources(t, test.paths)
+
+			kubeClient := kubefake.NewClientset(k8sObjects...)
+			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+			client := newClientImpl(kubeClient, crdClient)
+
+			stopCh := make(chan struct{})
+
+			eventCh, err := client.WatchAll([]string{"default", "cross-ns"}, stopCh)
+			require.NoError(t, err)
+
+			if k8sObjects != nil || crdObjects != nil {
+				// just wait for the first event
+				<-eventCh
+			}
+
+			p := Provider{}
+
+			conf := p.loadConfigurationFromCRD(context.Background(), client)
+			assert.Equal(t, test.expected, conf)
+		})
+	}
+}
+
+func TestNodePortLB(t *testing.T) {
+	testCases := []struct {
+		desc                string
+		paths               []string
+		disableClusterScope bool
+		expected            *dynamic.Configuration
+	}{
+		{
+			desc: "Empty",
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "HTTP with node port LB",
+			paths: []string{"services.yml", "with_node_port_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-6f97418635c7e18853da": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-6f97418635c7e18853da",
+							Rule:        "Host(`foo.com`)",
+							Priority:    0,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-6f97418635c7e18853da": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: dynamic.DefaultFlushInterval},
+								Servers: []dynamic.Server{
+									{
+										URL: "http://172.16.4.4:32456",
+									},
+								},
+								PassHostHeader: pointer(true),
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "TCP with native Service LB",
+			paths: []string{"tcp/services.yml", "tcp/with_node_port_service_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "172.16.4.4:32456",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "UDP with native Service LB",
+			paths: []string{"udp/services.yml", "udp/with_node_port_service_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers: map[string]*dynamic.UDPRouter{
+						"default-test.route-0": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-0",
+						},
+					},
+					Services: map[string]*dynamic.UDPService{
+						"default-test.route-0": {
+							LoadBalancer: &dynamic.UDPServersLoadBalancer{
+								Servers: []dynamic.UDPServer{
+									{
+										Address: "172.16.4.4:32456",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:                "HTTP with node port LB, cluster scope resources disabled",
+			paths:               []string{"services.yml", "with_node_port_lb.yml"},
+			disableClusterScope: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+
+		{
+			desc:                "TCP with native Service LB, cluster scope resources disabled",
+			paths:               []string{"tcp/services.yml", "tcp/with_node_port_service_lb.yml"},
+			disableClusterScope: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services:    map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:                "UDP with native Service LB, cluster scope resources disabled",
+			paths:               []string{"udp/services.yml", "udp/with_node_port_service_lb.yml"},
+			disableClusterScope: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers: map[string]*dynamic.UDPRouter{
+						"default-test.route-0": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-0",
+						},
+					},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			k8sObjects, crdObjects := readResources(t, test.paths)
+
+			kubeClient := kubefake.NewClientset(k8sObjects...)
+			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
+
+			client := newClientImpl(kubeClient, crdClient)
+
+			stopCh := make(chan struct{})
+
+			eventCh, err := client.WatchAll([]string{"default", "cross-ns"}, stopCh)
+			require.NoError(t, err)
+
+			if k8sObjects != nil || crdObjects != nil {
+				// just wait for the first event
+				<-eventCh
+			}
+
+			p := Provider{
+				DisableClusterScopeResources: test.disableClusterScope,
+			}
+
+			conf := p.loadConfigurationFromCRD(context.Background(), client)
+			assert.Equal(t, test.expected, conf)
+		})
+	}
+}
+
+func TestCreateBasicAuthCredentials(t *testing.T) {
+	var k8sObjects []runtime.Object
+	yamlContent, err := os.ReadFile(filepath.FromSlash("./fixtures/basic_auth_secrets.yml"))
+	if err != nil {
+		panic(err)
+	}
+
+	objects := k8s.MustParseYaml(yamlContent)
+	for _, obj := range objects {
+		switch o := obj.(type) {
+		case *corev1.Secret:
+			k8sObjects = append(k8sObjects, o)
+		default:
+		}
+	}
+
+	kubeClient := kubefake.NewClientset(k8sObjects...)
+	crdClient := traefikcrdfake.NewSimpleClientset()
+
+	client := newClientImpl(kubeClient, crdClient)
+
+	stopCh := make(chan struct{})
+
+	eventCh, err := client.WatchAll([]string{"default"}, stopCh)
+	require.NoError(t, err)
+
+	if len(k8sObjects) != 0 {
+		// just wait for the first event
+		<-eventCh
+	}
+
+	// Testing for username/password components in basic-auth secret
+	basicAuth, secretErr := createBasicAuthMiddleware(client, "default", &traefikv1alpha1.BasicAuth{Secret: "basic-auth-secret"})
+	require.NoError(t, secretErr)
+	require.Len(t, basicAuth.Users, 1)
+
+	components := strings.Split(basicAuth.Users[0], ":")
+	require.Len(t, components, 2)
+
+	username := components[0]
+	hashedPassword := components[1]
+
+	require.Equal(t, "user", username)
+	require.Equal(t, "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=", hashedPassword)
+	assert.True(t, auth.CheckSecret("password", hashedPassword))
+
+	// Testing for username/password components in htpasswd secret
+	basicAuth, secretErr = createBasicAuthMiddleware(client, "default", &traefikv1alpha1.BasicAuth{Secret: "auth-secret"})
+	require.NoError(t, secretErr)
+	require.Len(t, basicAuth.Users, 2)
+
+	components = strings.Split(basicAuth.Users[1], ":")
+	require.Len(t, components, 2)
+
+	username = components[0]
+	hashedPassword = components[1]
+
+	assert.Equal(t, "test2", username)
+	assert.Equal(t, "$apr1$d9hr9HBB$4HxwgUir3HP4EsggP/QNo0", hashedPassword)
+	assert.True(t, auth.CheckSecret("test2", hashedPassword))
+}
+
+func TestFillExtensionBuilderRegistry(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		namespaces []string
+		wantErr    require.ErrorAssertionFunc
+	}{
+		{
+			desc:    "no filter on namespaces",
+			wantErr: require.NoError,
+		},
+		{
+			desc:       "filter on default namespace",
+			namespaces: []string{"default"},
+			wantErr:    require.NoError,
+		},
+		{
+			desc:       "filter on not-default namespace",
+			namespaces: []string{"not-default"},
+			wantErr:    require.Error,
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.desc, func(t *testing.T) {
+			t.Parallel()
+
+			r := &extensionBuilderRegistryMock{}
+
+			p := Provider{Namespaces: test.namespaces}
+			p.FillExtensionBuilderRegistry(r)
+
+			filterFunc, ok := r.groupKindFilterFuncs[traefikv1alpha1.SchemeGroupVersion.Group]["Middleware"]
+			require.True(t, ok)
+
+			name, conf, err := filterFunc("my-middleware", "default")
+			test.wantErr(t, err)
+
+			if err == nil {
+				assert.Nil(t, conf)
+				assert.Equal(t, "default-my-middleware@kubernetescrd", name)
+			}
+
+			backendFunc, ok := r.groupKindBackendFuncs[traefikv1alpha1.SchemeGroupVersion.Group]["TraefikService"]
+			require.True(t, ok)
+
+			name, svc, err := backendFunc("my-service", "default")
+			test.wantErr(t, err)
+
+			if err == nil {
+				assert.Nil(t, svc)
+				assert.Equal(t, "default-my-service@kubernetescrd", name)
+			}
+		})
+	}
+}
+
+func readResources(t *testing.T, paths []string) ([]runtime.Object, []runtime.Object) {
+	t.Helper()
+
+	var k8sObjects []runtime.Object
+	var crdObjects []runtime.Object
+	for _, path := range paths {
+		yamlContent, err := os.ReadFile(filepath.FromSlash("./fixtures/" + path))
+		if err != nil {
+			panic(err)
+		}
+
+		objects := k8s.MustParseYaml(yamlContent)
+		for _, obj := range objects {
+			switch obj.GetObjectKind().GroupVersionKind().Group {
+			case "traefik.io":
+				crdObjects = append(crdObjects, obj)
+			default:
+				k8sObjects = append(k8sObjects, obj)
+			}
+		}
+	}
+
+	return k8sObjects, crdObjects
+}
+
+type extensionBuilderRegistryMock struct {
+	groupKindFilterFuncs  map[string]map[string]gateway.BuildFilterFunc
+	groupKindBackendFuncs map[string]map[string]gateway.BuildBackendFunc
+}
+
+// RegisterFilterFuncs registers an allowed Group, Kind, and builder for the Filter ExtensionRef objects.
+func (p *extensionBuilderRegistryMock) RegisterFilterFuncs(group, kind string, builderFunc gateway.BuildFilterFunc) {
+	if p.groupKindFilterFuncs == nil {
+		p.groupKindFilterFuncs = map[string]map[string]gateway.BuildFilterFunc{}
+	}
+
+	if p.groupKindFilterFuncs[group] == nil {
+		p.groupKindFilterFuncs[group] = map[string]gateway.BuildFilterFunc{}
+	}
+
+	p.groupKindFilterFuncs[group][kind] = builderFunc
+}
+
+// RegisterBackendFuncs registers an allowed Group, Kind, and builder for the Backend ExtensionRef objects.
+func (p *extensionBuilderRegistryMock) RegisterBackendFuncs(group, kind string, builderFunc gateway.BuildBackendFunc) {
+	if p.groupKindBackendFuncs == nil {
+		p.groupKindBackendFuncs = map[string]map[string]gateway.BuildBackendFunc{}
+	}
+
+	if p.groupKindBackendFuncs[group] == nil {
+		p.groupKindBackendFuncs[group] = map[string]gateway.BuildBackendFunc{}
+	}
+
+	p.groupKindBackendFuncs[group][kind] = builderFunc
+}
+
+func TestGlobalNativeLB(t *testing.T) {
+	testCases := []struct {
+		desc              string
+		ingressClass      string
+		paths             []string
+		NativeLBByDefault bool
+		expected          *dynamic.Configuration
+	}{
+		{
+			desc: "Empty",
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:              "HTTP with global native Service LB",
+			paths:             []string{"services.yml", "with_global_native_service_lb.yml"},
+			NativeLBByDefault: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers: map[string]*dynamic.Router{
+						"default-global-native-lb-6f97418635c7e18853da": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-global-native-lb-6f97418635c7e18853da",
+							Rule:        "Host(`foo.com`)",
+							Priority:    0,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-global-native-lb-6f97418635c7e18853da": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: dynamic.DefaultFlushInterval},
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "HTTP with native Service LB in ingressroute",
+			paths: []string{"services.yml", "with_native_service_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers: map[string]*dynamic.Router{
+						"default-test-route-6f97418635c7e18853da": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test-route-6f97418635c7e18853da",
+							Rule:        "Host(`foo.com`)",
+							Priority:    0,
+						},
+					},
+					Middlewares: map[string]*dynamic.Middleware{},
+					Services: map[string]*dynamic.Service{
+						"default-test-route-6f97418635c7e18853da": {
+							LoadBalancer: &dynamic.ServersLoadBalancer{
+								ResponseForwarding: &dynamic.ResponseForwarding{FlushInterval: dynamic.DefaultFlushInterval},
+								Servers: []dynamic.Server{
+									{
+										URL: "http://10.10.0.1:80",
+									},
+								},
+								PassHostHeader: pointer(true),
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:              "TCP with global native Service LB",
+			paths:             []string{"tcp/services.yml", "tcp/with_global_native_service_lb.yml"},
+			NativeLBByDefault: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-global-native-lb-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-global-native-lb-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-global-native-lb-fdd3e9338e47a45efefc": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.1:8000",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "TCP with native Service LB in ingressroute",
+			paths: []string{"tcp/services.yml", "tcp/with_native_service_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers:  map[string]*dynamic.UDPRouter{},
+					Services: map[string]*dynamic.UDPService{},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers: map[string]*dynamic.TCPRouter{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-fdd3e9338e47a45efefc",
+							Rule:        "HostSNI(`foo.com`)",
+						},
+					},
+					Middlewares: map[string]*dynamic.TCPMiddleware{},
+					Services: map[string]*dynamic.TCPService{
+						"default-test.route-fdd3e9338e47a45efefc": {
+							LoadBalancer: &dynamic.TCPServersLoadBalancer{
+								Servers: []dynamic.TCPServer{
+									{
+										Address: "10.10.0.1:8000",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:  "UDP with native Service LB in ingressroute",
+			paths: []string{"udp/services.yml", "udp/with_native_service_lb.yml"},
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers: map[string]*dynamic.UDPRouter{
+						"default-test.route-0": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-test.route-0",
+						},
+					},
+					Services: map[string]*dynamic.UDPService{
+						"default-test.route-0": {
+							LoadBalancer: &dynamic.UDPServersLoadBalancer{
+								Servers: []dynamic.UDPServer{
+									{
+										Address: "10.10.0.1:8000",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+		{
+			desc:              "UDP with global native Service LB",
+			paths:             []string{"udp/services.yml", "udp/with_global_native_service_lb.yml"},
+			NativeLBByDefault: true,
+			expected: &dynamic.Configuration{
+				UDP: &dynamic.UDPConfiguration{
+					Routers: map[string]*dynamic.UDPRouter{
+						"default-global-native-lb-0": {
+							EntryPoints: []string{"foo"},
+							Service:     "default-global-native-lb-0",
+						},
+					},
+					Services: map[string]*dynamic.UDPService{
+						"default-global-native-lb-0": {
+							LoadBalancer: &dynamic.UDPServersLoadBalancer{
+								Servers: []dynamic.UDPServer{
+									{
+										Address: "10.10.0.1:8000",
+										Port:    "",
+									},
+								},
+							},
+						},
+					},
+				},
+				HTTP: &dynamic.HTTPConfiguration{
+					ServersTransports: map[string]*dynamic.ServersTransport{},
+					Routers:           map[string]*dynamic.Router{},
+					Middlewares:       map[string]*dynamic.Middleware{},
+					Services:          map[string]*dynamic.Service{},
+				},
+				TCP: &dynamic.TCPConfiguration{
+					ServersTransports: map[string]*dynamic.TCPServersTransport{},
+					Routers:           map[string]*dynamic.TCPRouter{},
+					Middlewares:       map[string]*dynamic.TCPMiddleware{},
+					Services:          map[string]*dynamic.TCPService{},
+				},
+				TLS: &dynamic.TLSConfiguration{},
+			},
+		},
+	}
+
+	for _, test := range testCases {
 		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -6427,7 +8446,7 @@ func TestNativeLB(t *testing.T) {
 				}
 			}
 
-			kubeClient := kubefake.NewSimpleClientset(k8sObjects...)
+			kubeClient := kubefake.NewClientset(k8sObjects...)
 			crdClient := traefikcrdfake.NewSimpleClientset(crdObjects...)
 
 			client := newClientImpl(kubeClient, crdClient)
@@ -6442,72 +8461,10 @@ func TestNativeLB(t *testing.T) {
 				<-eventCh
 			}
 
-			p := Provider{}
+			p := Provider{NativeLBByDefault: test.NativeLBByDefault}
 
 			conf := p.loadConfigurationFromCRD(context.Background(), client)
 			assert.Equal(t, test.expected, conf)
 		})
 	}
-}
-
-func TestCreateBasicAuthCredentials(t *testing.T) {
-	var k8sObjects []runtime.Object
-	yamlContent, err := os.ReadFile(filepath.FromSlash("./fixtures/basic_auth_secrets.yml"))
-	if err != nil {
-		panic(err)
-	}
-
-	objects := k8s.MustParseYaml(yamlContent)
-	for _, obj := range objects {
-		switch o := obj.(type) {
-		case *corev1.Secret:
-			k8sObjects = append(k8sObjects, o)
-		default:
-		}
-	}
-
-	kubeClient := kubefake.NewSimpleClientset(k8sObjects...)
-	crdClient := traefikcrdfake.NewSimpleClientset()
-
-	client := newClientImpl(kubeClient, crdClient)
-
-	stopCh := make(chan struct{})
-
-	eventCh, err := client.WatchAll([]string{"default"}, stopCh)
-	require.NoError(t, err)
-
-	if k8sObjects != nil {
-		// just wait for the first event
-		<-eventCh
-	}
-
-	// Testing for username/password components in basic-auth secret
-	basicAuth, secretErr := createBasicAuthMiddleware(client, "default", &traefikv1alpha1.BasicAuth{Secret: "basic-auth-secret"})
-	require.NoError(t, secretErr)
-	require.Len(t, basicAuth.Users, 1)
-
-	components := strings.Split(basicAuth.Users[0], ":")
-	require.Len(t, components, 2)
-
-	username := components[0]
-	hashedPassword := components[1]
-
-	require.Equal(t, "user", username)
-	require.Equal(t, "{SHA}W6ph5Mm5Pz8GgiULbPgzG37mj9g=", hashedPassword)
-	assert.True(t, auth.CheckSecret("password", hashedPassword))
-
-	// Testing for username/password components in htpasswd secret
-	basicAuth, secretErr = createBasicAuthMiddleware(client, "default", &traefikv1alpha1.BasicAuth{Secret: "auth-secret"})
-	require.NoError(t, secretErr)
-	require.Len(t, basicAuth.Users, 2)
-
-	components = strings.Split(basicAuth.Users[1], ":")
-	require.Len(t, components, 2)
-
-	username = components[0]
-	hashedPassword = components[1]
-
-	assert.Equal(t, username, "test2")
-	assert.Equal(t, hashedPassword, "$apr1$d9hr9HBB$4HxwgUir3HP4EsggP/QNo0")
-	assert.True(t, auth.CheckSecret("test2", hashedPassword))
 }

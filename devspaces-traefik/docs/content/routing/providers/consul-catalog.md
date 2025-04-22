@@ -12,11 +12,19 @@ A Story of Tags, Services & Instances
 
 Attach tags to your services and let Traefik do the rest!
 
+One of the best feature of Traefik is to delegate the routing configuration to the application level.
+With Consul Catalog, Traefik can leverage tags attached to a service to generate routing rules.
+
+!!! warning "Tags & sensitive data"
+
+    We recommend to *not* use tags to store sensitive data (certificates, credentials, etc).
+    Instead, we recommend to store sensitive data in a safer storage (secrets, file, etc).
+
 ## Routing Configuration
 
 !!! info "tags"
     
-    - tags are case insensitive.
+    - tags are case-insensitive.
     - The complete list of tags can be found [the reference page](../../reference/dynamic-configuration/consul-catalog.md)
 
 ### General
@@ -101,6 +109,30 @@ For example, to change the rule, you could add the tag ```traefik.http.routers.m
     
     ```yaml
     traefik.http.routers.myrouter.tls.options=foobar
+    ```
+
+??? info "`traefik.http.routers.<router_name>.observability.accesslogs`"
+
+    See accesslogs [option](../routers/index.md#accesslogs) for more information.
+    
+    ```yaml
+    traefik.http.routers.myrouter.observability.accesslogs=true
+    ```
+
+??? info "`traefik.http.routers.<router_name>.observability.metrics`"
+
+    See metrics [option](../routers/index.md#metrics) for more information.
+    
+    ```yaml
+    traefik.http.routers.myrouter.observability.metrics=true
+    ```
+
+??? info "`traefik.http.routers.<router_name>.observability.tracing`"
+
+    See tracing [option](../routers/index.md#tracing) for more information.
+    
+    ```yaml
+    traefik.http.routers.myrouter.observability.tracing=true
     ```
 
 ??? info "`traefik.http.routers.<router_name>.priority`"
@@ -193,6 +225,14 @@ you'd add the tag `traefik.http.services.{name-of-your-choice}.loadbalancer.pass
     traefik.http.services.myservice.loadbalancer.healthcheck.method=foobar
     ```
 
+??? info "`traefik.http.services.<service_name>.loadbalancer.healthcheck.status`"
+    
+    See [health check](../services/index.md#health-check) for more information.
+    
+    ```yaml
+    traefik.http.services.myservice.loadbalancer.healthcheck.status=42
+    ```
+
 ??? info "`traefik.http.services.<service_name>.loadbalancer.healthcheck.port`"
     
     See [health check](../services/index.md#health-check) for more information.
@@ -249,6 +289,14 @@ you'd add the tag `traefik.http.services.{name-of-your-choice}.loadbalancer.pass
     traefik.http.services.myservice.loadbalancer.sticky.cookie.name=foobar
     ```
 
+??? info "`traefik.http.services.<service_name>.loadbalancer.sticky.cookie.path`"
+    
+    See [sticky sessions](../services/index.md#sticky-sessions) for more information.
+    
+    ```yaml
+    traefik.http.services.myservice.loadbalancer.sticky.cookie.path=/foobar
+    ```
+
 ??? info "`traefik.http.services.<service_name>.loadbalancer.sticky.cookie.secure`"
     
     See [sticky sessions](../services/index.md#sticky-sessions) for more information.
@@ -263,6 +311,14 @@ you'd add the tag `traefik.http.services.{name-of-your-choice}.loadbalancer.pass
     
     ```yaml
     traefik.http.services.myservice.loadbalancer.sticky.cookie.samesite=none
+    ```
+
+??? info "`traefik.http.services.<service_name>.loadbalancer.sticky.cookie.maxage`"
+    
+    See [sticky sessions](../services/index.md#sticky-sessions) for more information.
+    
+    ```yaml
+    traefik.http.services.myservice.loadbalancer.sticky.cookie.maxage=42
     ```
 
 ??? info "`traefik.http.services.<service_name>.loadbalancer.responseforwarding.flushinterval`"
@@ -396,12 +452,12 @@ You can declare TCP Routers and/or Services using tags.
     traefik.tcp.services.mytcpservice.loadbalancer.server.port=423
     ```
 
-??? info "`traefik.tcp.services.<service_name>.loadbalancer.terminationdelay`"
-        
-    See [termination delay](../services/index.md#termination-delay) for more information.
+??? info "`traefik.tcp.services.<service_name>.loadbalancer.server.tls`"
+    
+    Determines whether to use TLS when dialing with the backend.
     
     ```yaml
-    traefik.tcp.services.mytcpservice.loadbalancer.terminationdelay=100
+    traefik.tcp.services.mytcpservice.loadbalancer.server.tls=true
     ```
 
 ??? info "`traefik.tcp.services.<service_name>.loadbalancer.proxyprotocol.version`"
@@ -410,6 +466,15 @@ You can declare TCP Routers and/or Services using tags.
     
     ```yaml
     traefik.tcp.services.mytcpservice.loadbalancer.proxyprotocol.version=1
+    ```
+
+??? info "`traefik.tcp.services.<service_name>.loadbalancer.serverstransport`"
+
+    Allows to reference a ServersTransport resource that is defined either with the File provider or the Kubernetes CRD one.
+    See [serverstransport](../services/index.md#serverstransport_2) for more information.
+    
+    ```yaml
+    traefik.tcp.services.myservice.loadbalancer.serverstransport=foobar@file
     ```
 
 ### UDP

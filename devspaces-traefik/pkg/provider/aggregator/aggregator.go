@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	"github.com/traefik/traefik/v2/pkg/config/dynamic"
-	"github.com/traefik/traefik/v2/pkg/config/static"
-	"github.com/traefik/traefik/v2/pkg/log"
-	"github.com/traefik/traefik/v2/pkg/provider"
-	"github.com/traefik/traefik/v2/pkg/provider/file"
-	"github.com/traefik/traefik/v2/pkg/provider/traefik"
-	"github.com/traefik/traefik/v2/pkg/redactor"
-	"github.com/traefik/traefik/v2/pkg/safe"
+	"github.com/rs/zerolog/log"
+	"github.com/traefik/traefik/v3/pkg/config/dynamic"
+	"github.com/traefik/traefik/v3/pkg/config/static"
+	"github.com/traefik/traefik/v3/pkg/provider"
+	"github.com/traefik/traefik/v3/pkg/provider/file"
+	"github.com/traefik/traefik/v3/pkg/provider/traefik"
+	"github.com/traefik/traefik/v3/pkg/redactor"
+	"github.com/traefik/traefik/v3/pkg/safe"
 )
 
 // throttled defines what kind of config refresh throttling the aggregator should
@@ -67,8 +67,8 @@ type ProviderAggregator struct {
 }
 
 // NewProviderAggregator returns an aggregate of all the providers configured in the static configuration.
-func NewProviderAggregator(conf static.Providers) ProviderAggregator {
-	p := ProviderAggregator{
+func NewProviderAggregator(conf static.Providers) *ProviderAggregator {
+	p := &ProviderAggregator{
 		providersThrottleDuration: time.Duration(conf.ProvidersThrottleDuration),
 	}
 
@@ -80,8 +80,8 @@ func NewProviderAggregator(conf static.Providers) ProviderAggregator {
 		p.quietAddProvider(conf.Docker)
 	}
 
-	if conf.Marathon != nil {
-		p.quietAddProvider(conf.Marathon)
+	if conf.Swarm != nil {
+		p.quietAddProvider(conf.Swarm)
 	}
 
 	if conf.Rest != nil {
@@ -98,10 +98,6 @@ func NewProviderAggregator(conf static.Providers) ProviderAggregator {
 
 	if conf.KubernetesGateway != nil {
 		p.quietAddProvider(conf.KubernetesGateway)
-	}
-
-	if conf.Rancher != nil {
-		p.quietAddProvider(conf.Rancher)
 	}
 
 	if conf.Ecs != nil {
@@ -148,7 +144,7 @@ func NewProviderAggregator(conf static.Providers) ProviderAggregator {
 func (p *ProviderAggregator) quietAddProvider(provider provider.Provider) {
 	err := p.AddProvider(provider)
 	if err != nil {
-		log.WithoutContext().Errorf("Error while initializing provider %T: %v", provider, err)
+		log.Error().Err(err).Msgf("Error while initializing provider %T", provider)
 	}
 }
 
@@ -172,18 +168,17 @@ func (p *ProviderAggregator) AddProvider(provider provider.Provider) error {
 }
 
 // Init the provider.
-func (p ProviderAggregator) Init() error {
+func (p *ProviderAggregator) Init() error {
 	return nil
 }
 
 // Provide calls the provide method of every providers.
-func (p ProviderAggregator) Provide(configurationChan chan<- dynamic.Message, pool *safe.Pool) error {
+func (p *ProviderAggregator) Provide(configurationChan chan<- dynamic.Message, pool *safe.Pool) error {
 	if p.fileProvider != nil {
 		p.launchProvider(configurationChan, pool, p.fileProvider)
 	}
 
 	for _, prd := range p.providers {
-		prd := prd
 		safe.Go(func() {
 			p.launchProvider(configurationChan, pool, prd)
 		})
@@ -198,17 +193,17 @@ func (p ProviderAggregator) Provide(configurationChan chan<- dynamic.Message, po
 	return nil
 }
 
-func (p ProviderAggregator) launchProvider(configurationChan chan<- dynamic.Message, pool *safe.Pool, prd provider.Provider) {
+func (p *ProviderAggregator) launchProvider(configurationChan chan<- dynamic.Message, pool *safe.Pool, prd provider.Provider) {
 	jsonConf, err := redactor.RemoveCredentials(prd)
 	if err != nil {
-		log.WithoutContext().Debugf("Cannot marshal the provider configuration %T: %v", prd, err)
+		log.Debug().Err(err).Msgf("Cannot marshal the provider configuration %T", prd)
 	}
 
-	log.WithoutContext().Infof("Starting provider %T", prd)
-	log.WithoutContext().Debugf("%T provider configuration: %s", prd, jsonConf)
+	log.Info().Msgf("Starting provider %T", prd)
+	log.Debug().RawJSON("config", []byte(jsonConf)).Msgf("%T provider configuration", prd)
 
 	if err := maybeThrottledProvide(prd, p.providersThrottleDuration)(configurationChan, pool); err != nil {
-		log.WithoutContext().Errorf("Cannot start the provider %T: %v", prd, err)
+		log.Error().Err(err).Msgf("Cannot start the provider %T", prd)
 		return
 	}
 }
