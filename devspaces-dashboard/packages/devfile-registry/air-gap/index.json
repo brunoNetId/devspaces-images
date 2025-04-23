@@ -25,16 +25,16 @@
   {
     "id": "dotnet",
     "displayName": ".NET",
-    "description": ".NET stack with .NET Core SDK 8, Runtime, C# Language Support and Debugger",
+    "description": ".NET stack with .NET Core SDK 9, Runtime, C# Language Support and Debugger",
     "tags": [
-      "Tech-Preview",
+      "Community",
       ".NET",
       "C#",
       ".NET SDK",
       ".NET Runtime",
       "Netcoredbg",
       "Omnisharp",
-      "UBI9"
+      "Fedora"
     ],
     "url": "CHE_DASHBOARD_INTERNAL_URL/dashboard/api/airgap-sample/devfile/download?id=dotnet",
     "icon": {
