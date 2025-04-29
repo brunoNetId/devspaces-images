@@ -48,7 +48,7 @@ RUN export ARCH="$(uname -m)" && if [[ ${ARCH} == "x86_64" ]]; then export ARCH=
     GOOS=linux GOARCH=${ARCH} GO111MODULE=on go build -mod=vendor -a -o che-operator main.go
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1742914212
+FROM registry.redhat.io/ubi9-minimal:9.5-1745855087
 
 RUN microdnf update -y && \
     microdnf -y clean all && rm -rf /var/cache/yum && echo "Installed Packages" && rpm -qa | sort -V && echo "End Of Installed Packages"
