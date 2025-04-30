@@ -16,7 +16,7 @@
 #########################################################################
 
 # https://registry.access.redhat.com/ubi8/nodejs-20
-FROM registry.redhat.io/ubi8/nodejs-20:1-73.1742991506 as checode-linux-libc-ubi8-builder
+FROM registry.redhat.io/ubi8/nodejs-20:1-74 as checode-linux-libc-ubi8-builder
 # hadolint ignore=DL3002
 USER root
 
@@ -59,7 +59,7 @@ RUN source $REMOTE_SOURCES_DIR/devspaces-images-code/cachito.env; \
 #
 # For each @vscode/ripgrep version VS Code currently depends on
 # create a cache folder with the required binary version.
-COPY artifacts/ripgrep-*.tar.gz /tmp/vscode-ripgrep-cache-1.15.10/
+COPY artifacts/ripgrep-*.tar.gz /tmp/vscode-ripgrep-cache-1.15.11/
 
 # See the required binary version in https://github.com/microsoft/vscode-ripgrep/blob/main/lib/postinstall.js#L21
 
@@ -199,7 +199,7 @@ RUN npm install \
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.redhat.io/ubi9/nodejs-20:9.5-1743584090 as checode-linux-libc-ubi9-builder
+FROM registry.redhat.io/ubi9/nodejs-20:9.5-1746001811 as checode-linux-libc-ubi9-builder
 # hadolint ignore=DL3002
 USER root
 
@@ -251,7 +251,7 @@ RUN source $REMOTE_SOURCES_DIR/devspaces-images-code/cachito.env; \
 #
 # For each @vscode/ripgrep version VS Code currently depends on
 # create a cache folder with the required binary version.
-COPY artifacts/ripgrep-*.tar.gz /tmp/vscode-ripgrep-cache-1.15.10/
+COPY artifacts/ripgrep-*.tar.gz /tmp/vscode-ripgrep-cache-1.15.11/
 
 # See the required binary version in https://github.com/microsoft/vscode-ripgrep/blob/main/lib/postinstall.js#L21
 
@@ -413,7 +413,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -a -ldflags '-w -s' -a -instal
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9
-FROM registry.redhat.io/ubi9:9.5-1744101466 AS ubi-builder
+FROM registry.redhat.io/ubi9:9.5-1745854298 AS ubi-builder
 
 RUN mkdir -p /mnt/rootfs/projects /mnt/rootfs/home/che /mnt/rootfs/remote/data/Machine/
 # hadolint ignore=DL3033
@@ -458,7 +458,7 @@ RUN rm /mnt/rootfs/etc/hosts
 #########################################################################
 
 # https://registry.access.redhat.com/ubi9-minimal
-FROM registry.redhat.io/ubi9-minimal:9.5-1742914212
+FROM registry.redhat.io/ubi9-minimal:9.5-1745855087
 COPY --from=ubi-builder /mnt/rootfs/ /
 ENV HOME=/home/che
 USER 1001
