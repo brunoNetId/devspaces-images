@@ -13,10 +13,10 @@
 
 # The image to get the Node.js binary to support running an IDE in a UBI8-based user container.
 # https://registry.access.redhat.com/ubi8/nodejs-20
-FROM registry.redhat.io/ubi8/nodejs-20:1-73.1742991506 as ubi8
+FROM registry.redhat.io/ubi8/nodejs-20:1-74 as ubi8
 
 # https://registry.access.redhat.com/ubi9/nodejs-20
-FROM registry.redhat.io/ubi9/nodejs-20:9.5-1743584090
+FROM registry.redhat.io/ubi9/nodejs-20:9.5-1746001811
 
 USER 0
 
