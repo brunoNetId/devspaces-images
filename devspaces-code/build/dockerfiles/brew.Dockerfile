@@ -181,7 +181,7 @@ RUN echo "$(ulimit -a)"
 # hadolint ignore=SC2086,DL4006
 RUN set -x; \
     NODE_ARCH=$(echo "console.log(process.arch)" | node) \
-    && NODE_OPTIONS="--max_old_space_size=8500" ./node_modules/.bin/gulp vscode-reh-web-linux-${NODE_ARCH}-min -LLLL \
+    && NODE_OPTIONS="--max_old_space_size=4096" ./node_modules/.bin/gulp vscode-reh-web-linux-${NODE_ARCH}-min -LLLL \
     && cp -r ../vscode-reh-web-linux-${NODE_ARCH} /checode
 
 RUN chmod a+x /checode/out/server-main.js \
@@ -375,7 +375,7 @@ RUN echo "$(ulimit -a)"
 # hadolint ignore=SC2086,DL4006
 RUN set -x; \
     NODE_ARCH=$(echo "console.log(process.arch)" | node) \
-    && NODE_OPTIONS="--max_old_space_size=8500" ./node_modules/.bin/gulp vscode-reh-web-linux-${NODE_ARCH}-min -LLLL \
+    && NODE_OPTIONS="--max_old_space_size=4096" ./node_modules/.bin/gulp vscode-reh-web-linux-${NODE_ARCH}-min -LLLL \
     && cp -r ../vscode-reh-web-linux-${NODE_ARCH}/. /checode
 
 RUN chmod a+x /checode/out/server-main.js \
