@@ -872,7 +872,7 @@ spec:
                 - name: RELATED_IMAGE_editor_definition_che_clion_server_latest_editor_runtime
                   value: registry.redhat.io/devspaces/udi-rhel9@sha256:0ed69d7ada1fcc9abb70cb8d70464fd6b2dcf708a4e7952aa2fbeabb687fc55d
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_injector
-                  value: registry.redhat.io/devspaces/code-rhel9@sha256:93af5cb90aa28748f51dc625d152628d8a9d66640c1c324cd68fd48f621470e9
+                  value: registry.redhat.io/devspaces/code-rhel9@sha256:50e457ca3c17e0c471a8fb44ee7f9c9c650d422087f7f52e774b88c84ce741fd
                 - name: RELATED_IMAGE_editor_definition_che_code_latest_che_code_runtime_description
                   value: registry.redhat.io/devspaces/udi-rhel9@sha256:0ed69d7ada1fcc9abb70cb8d70464fd6b2dcf708a4e7952aa2fbeabb687fc55d
                 - name: RELATED_IMAGE_editor_definition_che_idea_latest_idea_rhel9
@@ -1096,7 +1096,7 @@ spec:
   - name: editor_definition_che_clion_server_latest_editor_runtime
     image: registry.redhat.io/devspaces/udi-rhel9@sha256:0ed69d7ada1fcc9abb70cb8d70464fd6b2dcf708a4e7952aa2fbeabb687fc55d
   - name: editor_definition_che_code_latest_che_code_injector
-    image: registry.redhat.io/devspaces/code-rhel9@sha256:93af5cb90aa28748f51dc625d152628d8a9d66640c1c324cd68fd48f621470e9
+    image: registry.redhat.io/devspaces/code-rhel9@sha256:50e457ca3c17e0c471a8fb44ee7f9c9c650d422087f7f52e774b88c84ce741fd
   - name: editor_definition_che_code_latest_che_code_runtime_description
     image: registry.redhat.io/devspaces/udi-rhel9@sha256:0ed69d7ada1fcc9abb70cb8d70464fd6b2dcf708a4e7952aa2fbeabb687fc55d
   - name: editor_definition_che_idea_latest_idea_rhel9
