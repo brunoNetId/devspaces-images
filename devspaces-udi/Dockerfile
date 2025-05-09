@@ -146,6 +146,11 @@ RUN \
     dnf -y -q module reset maven nodejs php; \
     dnf -y -q module install maven:3.8 nodejs:$NODEJS_VERSION php:$PHP_VERSION
 
+RUN dnf repolist && \
+    dnf config-manager --set-disabled *__9_DOT_* && \ 
+    echo 'Repolist post disable:' && \
+    dnf repolist
+
 RUN dnf -y -q install --setopt=tsflags=nodocs \
         container-tools golang \
         java-1.8.0-openjdk java-1.8.0-openjdk-devel java-1.8.0-openjdk-headless \
