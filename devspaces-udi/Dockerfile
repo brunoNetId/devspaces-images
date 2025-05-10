@@ -21,6 +21,7 @@ RUN \
     ########################################################################
     # Build all Golang projects fetched from Cachito
     ########################################################################
+    dnf config-manager --set-disabled *__9_DOT_* && \ 
     dnf -y -q install golang make gzip which openshift-clients && \
     # BEGIN Gopls
     mkdir /home/tooling/go/bin -p && \
@@ -140,16 +141,13 @@ RUN \
     microdnf install -y dnf && \
     # Disable codeready-builder repos to prevent accidentally installing incorrect packages
     dnf -y -q install 'dnf-command(config-manager)' && \
+    # Disable version specific rhel repos
+    dnf config-manager --set-disabled *__9_DOT_* && \ 
     # install libatomic_ops from codeready-builder before disabling it
     dnf -y -q install libatomic_ops && \
     dnf config-manager --set-disabled codeready-* && \
     dnf -y -q module reset maven nodejs php; \
     dnf -y -q module install maven:3.8 nodejs:$NODEJS_VERSION php:$PHP_VERSION
-
-RUN dnf repolist && \
-    dnf config-manager --set-disabled *__9_DOT_* && \ 
-    echo 'Repolist post disable:' && \
-    dnf repolist
 
 RUN dnf -y -q install --setopt=tsflags=nodocs \
         container-tools golang \
