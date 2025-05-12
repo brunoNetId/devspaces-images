@@ -223,7 +223,7 @@ else
         SCRIPTS_BRANCH="devspaces-3-rhel-9"
     fi
     echo "Load https://raw.githubusercontent.com/redhat-developer/devspaces/${SCRIPTS_BRANCH}/dependencies/job-config.json [3]"
-    curl -sSLo /tmp/job-config.json https://raw.githubusercontent.com/redhat-developer/devspaces/${SCRIPTS_BRANCH}/dependencies/job-config.json
+    curl -sSLo /tmp/job-config.json https://raw.githubusercontent.com/redhat-developer/devspaces/"${SCRIPTS_BRANCH}"/dependencies/job-config.json
     jobconfigjson=/tmp/job-config.json
 fi
 REGISTRY_VERSION=$(jq -r '.Version' "${jobconfigjson}");
