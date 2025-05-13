@@ -225,8 +225,7 @@ for CSVFILE in ${TARGETDIR}/manifests/devspaces.csv.yaml; do
 		-e '/operatorframework.io\/cluster-monitoring:/d' \
 		-e 's|operatorframework.io/suggested-namespace: .+|operatorframework.io/suggested-namespace: openshift-operators|' \
 		-e '/operatorframework.io\/suggested-namespace/a \ \ \ \ operatorframework.io/cluster-monitoring: "true"\n'"$subscriptions" \
-		-e '/annotations\:/i \ \ labels:\n    operatorframework.io/arch.amd64\: supported\n    operatorframework.io/arch.ppc64le\: supported\n    operatorframework.io/arch.s390x\: supported' \
-		-e 's|devworkspace-devspaces-operator|devworkspace-che-operator|' \
+    -e 's|devworkspace-devspaces-operator|devworkspace-che-operator|' \
 		-e 's|"namespace": ".+"|"namespace": "openshift-devspaces"|' \
 		-i "${CSVFILE}"
 	# insert missing cheFlavor annotation
@@ -237,6 +236,15 @@ for CSVFILE in ${TARGETDIR}/manifests/devspaces.csv.yaml; do
 	if [[ $(diff -u "${SOURCE_CSVFILE}" "${CSVFILE}") ]]; then
 		echo "    ${0##*/} :: Converted (sed) ${CSVFILE}"
 	fi
+
+  # https://issues.redhat.com/browse/CRW-8592
+  yq -riY '
+    .metadata.labels = {
+      "operatorframework.io/arch.amd64": "supported",
+      "operatorframework.io/arch.ppc64le": "supported",
+      "operatorframework.io/arch.s390x": "supported"
+    }
+  ' "${CSVFILE}"
 
   # https://issues.redhat.com/browse/CRW-6352
   CHE_LINKS=(
