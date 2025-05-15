@@ -141,8 +141,6 @@ RUN \
     microdnf install -y dnf && \
     # Disable codeready-builder repos to prevent accidentally installing incorrect packages
     dnf -y -q install 'dnf-command(config-manager)' && \
-    # Disable version specific rhel repos
-    dnf config-manager --set-disabled *__9_DOT_* && \ 
     # install libatomic_ops from codeready-builder before disabling it
     dnf -y -q install libatomic_ops && \
     dnf config-manager --set-disabled codeready-* && \
@@ -166,9 +164,6 @@ RUN dnf -y -q install --setopt=tsflags=nodocs \
         bash bash-completion tar gzip unzip bzip2 which shadow-utils findutils wget sudo git-lfs procps-ng tree vim \
         # For OpenShift Client 4 (oc): rhocp-4.17-for-rhel-8-x86_64-rpms
         # must hard code a version because otherwise CVP/Brew fails with: Failed component comparison for components: openshift-clients
-        # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/x86_64/ocp-tools/4.15/os/Packages/o/odo-3.16.1-1.el9.x86_64.rpm
-        # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/s390x/ocp-tools/4.15/os/Packages/o/odo-3.16.1-1.el9.s390x.rpm
-        # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/ppc64le/ocp-tools/4.15/os/Packages/o/odo-3.16.1-1.el9.ppc64le.rpm
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/x86_64/ocp-tools/4.15/os/Packages/h/helm-3.13.2-35.el9.x86_64.rpm
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/s390x/ocp-tools/4.15/os/Packages/h/helm-3.13.2-35.el9.s390x.rpm
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel9/ppc64le/ocp-tools/4.15/os/Packages/h/helm-3.13.2-35.el9.ppc64le.rpm
@@ -178,7 +173,7 @@ RUN dnf -y -q install --setopt=tsflags=nodocs \
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel8/x86_64/pipelines/1.16/os/Packages/o/openshift-pipelines-client-1.16.0-11647.el8.x86_64.rpm
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel8/s390x/pipelines/1.16/os/Packages/o/openshift-pipelines-client-1.16.0-11647.el8.s390x.rpm
         # https://rhsm-pulp.corp.redhat.com/content/dist/layered/rhel8/ppc64le/pipelines/1.16/os/Packages/o/openshift-pipelines-client-1.16.0-11647.el8.ppc64le.rpm
-        odo helm openshift-clients-4.17.0-202412032103.p0.g13001b0.assembly.stream.el9 openshift-pipelines-client-1.16.0-11647.el8 && \
+        helm openshift-clients-4.17.0-202412032103.p0.g13001b0.assembly.stream.el9 openshift-pipelines-client-1.16.0-11647.el8 && \
     dnf -y -q reinstall shadow-utils && \
     # fetch CVE updates (can exclude rpms to prevent update, eg., --exclude=odo)
     dnf -y -q update && \
