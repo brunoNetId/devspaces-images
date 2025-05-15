@@ -1,10 +1,6 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  labels:
-    operatorframework.io/arch.amd64: supported
-    operatorframework.io/arch.arm64: supported
-    operatorframework.io/os.linux: supported
   annotations:
     alm-examples: |-
       [
@@ -59,7 +55,7 @@ metadata:
     categories: Developer Tools
     certified: "true"
     containerImage: registry.redhat.io/devspaces/devspaces-rhel9-operator@sha256:c8db6be6a2339d9688810e03fe7839f191f90ad934361e0a674b5d1ed5065e11
-    createdAt: "2025-05-07T00:39:39+00:00"
+    createdAt: "2025-05-13T15:14:07+00:00"
     description: Devfile v2 and v1 development solution, 1 instance per cluster, for portable, collaborative k8s workspaces.
     features.operators.openshift.io/cnf: "false"
     features.operators.openshift.io/cni: "false"
@@ -79,6 +75,10 @@ metadata:
     repository: https://github.com/redhat-developer/devspaces-images/
     support: Red Hat
     skipRange: '>=3.0.0 <3.21.0'
+  labels:
+    operatorframework.io/arch.amd64: supported
+    operatorframework.io/arch.ppc64le: supported
+    operatorframework.io/arch.s390x: supported
   name: devspacesoperator.v3.21.0
   namespace: placeholder
 spec:
@@ -900,7 +900,7 @@ spec:
                 - name: RELATED_IMAGE_gateway_authorization_sidecar
                   value: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:1ed3b514bf9af6ac0d386e3739874d1d964e667d54e041c2d67edd769b0009fb
                 - name: RELATED_IMAGE_plugin_registry
-                  value: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ba8aed32c0b4b320bbcbac41f9af981ee25009af33974d6ea9e44fcd1d8c1ed1
+                  value: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:21fe84e0d4afb79cb085da4d4e53f023677c0c285f131cffdc634bb0ecbb4e9c
                 - name: RELATED_IMAGE_pvc_jobs
                   value: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
                 - name: RELATED_IMAGE_sample_encoded_cmVnaXN0cnkucmVkaGF0LmlvL2RldnNwYWNlcy91ZGktcmhlbDk6My4yMQo____
@@ -1124,7 +1124,7 @@ spec:
   - name: gateway_authorization_sidecar
     image: registry.redhat.io/openshift4/ose-kube-rbac-proxy@sha256:1ed3b514bf9af6ac0d386e3739874d1d964e667d54e041c2d67edd769b0009fb
   - name: plugin_registry
-    image: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:ba8aed32c0b4b320bbcbac41f9af981ee25009af33974d6ea9e44fcd1d8c1ed1
+    image: registry.redhat.io/devspaces/pluginregistry-rhel9@sha256:21fe84e0d4afb79cb085da4d4e53f023677c0c285f131cffdc634bb0ecbb4e9c
   - name: pvc_jobs
     image: registry.redhat.io/ubi8/ubi-minimal@sha256:b93deceb59a58588d5b16429fc47f98920f84740a1f2ed6454e33275f0701b59
   - name: sample_encoded_cmvnaxn0cnkucmvkagf0lmlvl2rldnnwywnlcy91zgktcmhlbdk6my4ymqo____
