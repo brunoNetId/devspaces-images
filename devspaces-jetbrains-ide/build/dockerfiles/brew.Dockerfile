@@ -38,9 +38,6 @@ WORKDIR $REMOTE_SOURCES_DIR/devspaces-images-jetbrains-ide/app/devspaces-jetbrai
 RUN cp -r status-app /status-app/
 RUN cp -r build/scripts/*.sh /
 
-# Copy the JetBrains IDE's config where some settings are overridden for Che CDE needs.
-RUN cp -r build/jetbrains_configs/idea.properties /
-
 # Create a folders structure for mounting a shared volume and copy the editor binaries to.
 RUN mkdir -p /idea-server/status-app
 
@@ -51,7 +48,11 @@ RUN for f in "${HOME}" "/etc/passwd" "/etc/group" "/status-app" "/idea-server"; 
         chmod -R g+rwX ${f}; \
     done
 
-# to provide to a UBI8-based user's container
+# When registry.access.redhat.com/ubi9 is used as a user container,
+# there no libbrotli in the image. We provide it additionally to the user's container.
+RUN mkdir /node-ubi9-ld_libs && cp -r /usr/lib64/libbrotli* /node-ubi9-ld_libs/
+
+# To make the solution backward compatible with the UBI8-based user containers.
 COPY --from=ubi8 /usr/bin/node /node-ubi8
 
 # Switch to unprivileged user.
